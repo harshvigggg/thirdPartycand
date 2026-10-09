@@ -116,7 +116,7 @@ Pages now follow the sheet, in this order, with fields in the sheet's order; eve
 
 | # | Page | Fields (sheet order) | Pre-filled from |
 |---|---|---|---|
-| 0 | Documents (intro) | CV*, Passport, National ID, Degree certificate, College transcript(s), German certificate, Experience letter(s), photo, marksheets, registration, other | — all read together on "Read my documents & continue" |
+| 0 | Intro | CV* only — read on "Read my CV & continue" to pre-fill the form | CV |
 | 1 | Basic Information | First/Last name (added — not on the sheet), Nationality, Current Profession, Date of Birth, Current German Level, Gender | Passport, CV, German cert |
 | 2 | College / Higher Education | Name (original), Name in German, Degree, Start, End, City, Country, Diploma Date, Qualification in Home Country | Degree cert, transcript |
 | 3 | Personal Details / Contact | Place of Birth, Country of Birth, Birth Name, Marital Status, Children, Street, Zip, City, Phone, Email (added), Passport Number | Passport, National ID, CV |
@@ -126,5 +126,7 @@ Pages now follow the sheet, in this order, with fields in the sheet's order; eve
 | 7 | Languages | Language, Proficiency (A1–C2 for German) | CV, German cert |
 | 8 | Job Preferences | Facility Type, Department, State, Region, Salary Before/After Recognition, Adjustment Measures, Family Reunification | candidate input |
 
+| 9 | Documents (last page) | Passport, National ID, Degree certificate, College transcript(s), German certificate, Experience letter(s), photo, marksheets, registration, other | stored only (not read) |
+
 Catalogs: Type of Facility = reference `einrichtungstyp` (+ Other), Department = reference `abteilung` (92), Employment Type = `beschaftigungsverhaltnis` (8), Children = `children` (6).
-Document reading: `api/parse-docs.js` sends every uploaded document (up to ~18 MB total) to Gemini in one request; free-text choices (department, home qualification) are matched onto the form's option lists in the browser.
+Document reading: `api/parse-docs.js` can read several documents in one request, but the form currently sends only the CV (uploaded on the intro); the other documents are collected on the last page and stored. Catalog choices free-text choices (department, home qualification) are matched onto the form's option lists in the browser.

@@ -57,11 +57,11 @@ function stepper(cur) {
 
 const DOCS = STEPS.find(x => x.key === 'documents').groups[0];
 // Uploaded documents that can be read, in priority order, as [{ kind, path }].
-const docList = () => Object.keys(DOC_KINDS).flatMap(k => (D.documents[k] || []).map(x => ({ kind: k, path: x.path })));
+const docList = () => DOCS.fields.filter(f => f.intro && DOC_KINDS[f.k]).flatMap(f => (D.documents[f.k] || []).map(x => ({ kind: f.k, path: x.path })));
 const docsKey = () => docList().map(d => d.path).join('|');
 const introState = () => { const n = docList().length, fresh = n && docsKey() !== st.docsRead; return { n, fresh,
-  status: st.docsRead && !fresh ? 'Your documents have been read. Continue to check each page.' : fresh ? 'When you continue, we will read your documents and fill in the form.' : '',
-  button: fresh ? 'Read my documents & continue' : n ? 'Continue' : 'Start without documents' }; };
+  status: st.docsRead && !fresh ? 'Your CV has been read. Continue to check each page.' : fresh ? 'When you continue, we will read your CV and fill in the form.' : '',
+  button: fresh ? 'Read my CV & continue' : n ? 'Continue' : 'Start without a CV' }; };
 // Keeps the intro's status line and button in step with the uploaded documents without re-rendering the slots.
 function paintIntro() {
   if (st.step !== 0) return;
@@ -72,17 +72,17 @@ function intro() {
   const { status, button } = introState();
   return `<section class="card intro">
 <h2>Welcome</h2>
-<p>This form collects the details we need for your application. Upload your documents first — we read them and fill in most of the form for you, so you mostly just check and confirm.</p>
+<p>This form collects the details we need for your application. It takes about 15 minutes.</p>
 <p>Your answers are saved automatically on this device, so you can come back later and continue.</p>
-<p class="note">Files can be PDF, JPG or PNG, up to 10 MB each. Only the CV is required; every extra document means fewer questions to type.</p>
-<h3>Your documents</h3>
-<div class="grid">${DOCS.fields.map(f => field(f, D.documents, 'documents')).join('')}</div>
+<h3>Start with your CV <span class="tag">Required</span></h3>
+<p class="note">We read your CV and fill in as much of the form as we can. You can check and change everything afterwards. Other documents are asked for at the end.</p>
+<div class="grid">${DOCS.fields.filter(f => f.intro).map(f => field(f, D.documents, 'documents')).join('')}</div>
 <p class="note" id="cv-status">${status}</p>
 </section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">${button}</button></div>`;
 }
 // Shown while the documents are being read, so step 1 never appears empty and then fills itself.
 function loading(n) {
-  return `<section class="card done"><div class="spin" aria-hidden="true"></div><h2>Reading your ${n === 1 ? 'document' : `${n} documents`}…</h2><p>We are filling in your details for you. This usually takes one to two minutes.</p><p class="note">Please wait — the next page will open automatically.</p><div class="nav" style="justify-content:center"><button type="button" class="btn" data-act="skipcv">Skip and type myself</button></div></section>`;
+  return `<section class="card done"><div class="spin" aria-hidden="true"></div><h2>Reading your ${n === 1 ? 'CV' : `${n} documents`}…</h2><p>We are filling in your details for you. This usually takes under a minute.</p><p class="note">Please wait — the next page will open automatically.</p><div class="nav" style="justify-content:center"><button type="button" class="btn" data-act="skipcv">Skip and type myself</button></div></section>`;
 }
 
 function stepView(x) {
@@ -122,7 +122,7 @@ function paintGaps() {
     if (small) small.textContent = span; else if (span) en.querySelector('.entry-h b').insertAdjacentHTML('beforeend', `<small>${esc(span)}</small>`);
   });
 }
-const grid = (g, s, base) => `<div class="grid">${g.fields.map(f => field(f, s, base)).join('')}</div>`;
+const grid = (g, s, base) => `<div class="grid">${g.fields.filter(f => !f.intro).map(f => field(f, s, base)).join('')}</div>`;
 
 function field(f, s, base) {
   if (!visible(f, s, D)) return '';
@@ -208,7 +208,7 @@ async function submit(b) {
   const e = validate(D, { client: 1 }), bad = Object.keys(e).find(k => k !== 'consent');
   if (bad) {
     const [grp, sub] = bad.split('.');
-    st.ret = 1; go(grp === 'documents' ? 0 : grp === 'notes' ? FORM_STEPS.findIndex(x => x.key === sub) + 1 : FORM_STEPS.findIndex(x => x.groups.some(g => g.key === grp)) + 1);
+    st.ret = 1; go(bad === 'documents.cv' ? 0 : grp === 'notes' ? FORM_STEPS.findIndex(x => x.key === sub) + 1 : FORM_STEPS.findIndex(x => x.groups.some(g => g.key === grp)) + 1);
     st.show = 1; showErrors(errors());
     return toast('Some details are missing. Please complete the highlighted fields.');
   }

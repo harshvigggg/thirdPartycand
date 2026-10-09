@@ -148,15 +148,15 @@ export const STEPS = [
     { k: 'familyReunification', l: 'Family Reunification', t: 'radio', r: 1, o: ['Family reunification at job start', 'Family reunification after recognition', 'No family reunification (single, no children)', 'Other'] },
     { k: 'familyOther', l: 'Please specify', t: 'text', r: 1, if: s => s.familyReunification === 'Other' },
   ] }] },
-  // Collected on the intro page. Each document is read to pre-fill the sections above (see DOC_KINDS).
-  { key: 'documents', title: 'Documents', short: 'Documents', pre: 1, groups: [{ key: 'documents', fields: [
-    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, hint: 'Used for your profession, schooling, work experience, languages and skills.' },
-    { k: 'passport', l: 'Passport', t: 'file', hint: 'Used for nationality, date and place of birth, gender and passport number.' },
-    { k: 'nationalId', l: 'National ID', t: 'file', hint: 'Used for your birth name, marital status and current address.' },
-    { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file', hint: 'Used for your college, degree, country and diploma date.' },
-    { k: 'transcript', l: 'College Transcript', t: 'file', multi: 1, hint: 'Used for your college start and end dates.' },
-    { k: 'germanCertificate', l: 'German Language Certificate', t: 'file', hint: 'Used for your German level.' },
-    { k: 'experienceLetters', l: 'Internship / Job Experience Letters', fn: 'Experience Letter', t: 'file', multi: 1, hint: 'Used for your work experience: hospital, department, dates, tasks and equipment.' },
+  // The CV is collected on the intro page (`intro: 1`) and read to pre-fill the sections above; the other documents are the last step.
+  { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
+    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, intro: 1, hint: 'We read your CV to fill in the form for you.' },
+    { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => !!d.personal?.passportNumber },
+    { k: 'nationalId', l: 'National ID', t: 'file' },
+    { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file' },
+    { k: 'transcript', l: 'College Transcript', t: 'file', multi: 1 },
+    { k: 'germanCertificate', l: 'German Language Certificate', t: 'file' },
+    { k: 'experienceLetters', l: 'Internship / Job Experience Letters', fn: 'Experience Letter', t: 'file', multi: 1 },
     { k: 'photo', l: 'Profile Photo', t: 'file' },
     { k: 'marksheets', l: 'Academic Marksheets', t: 'file', multi: 1 },
     { k: 'registration', l: 'Professional Registration', t: 'file' },
@@ -165,7 +165,7 @@ export const STEPS = [
 ];
 // Document fields that are read to pre-fill the form, in priority order, with the label the reader sees.
 export const DOC_KINDS = { cv: 'CV', passport: 'Passport', nationalId: 'National ID', degree: 'Degree certificate', transcript: 'College transcript', germanCertificate: 'German language certificate', experienceLetters: 'Internship / job experience letter' };
-// Steps shown in the stepper (the document step is collected up front).
+// Steps shown in the stepper (all of them; the CV alone is collected up front).
 export const FORM_STEPS = STEPS.filter(s => !s.pre);
 // Free-text notes per page, stored under `notes.<stepKey>`.
 export const NOTES = { l: 'Notes', t: 'textarea', ph: 'Anything you would like to add or explain about this page (optional)' };
@@ -215,7 +215,7 @@ export function validate(d, o = {}) {
       a.forEach((s, i) => each(s || {}, `${g.key}.${i}`));
     } else each(d[g.key] || {}, g.key);
   }
-  for (const st of o.step ? [o.step] : STEPS) if (!st.pre) { const v = d.notes?.[st.key]; if (typeof v === 'string' && v.length > 2000) e[`notes.${st.key}`] = 'This answer is too long.'; }
+  for (const st of o.step ? [o.step] : STEPS) { const v = d.notes?.[st.key]; if (typeof v === 'string' && v.length > 2000) e[`notes.${st.key}`] = 'This answer is too long.'; }
   if (!o.step && !(d.consent?.accurate && d.consent?.processing)) e.consent = 'Please tick both boxes to continue.';
   return e;
 }
@@ -239,7 +239,7 @@ export function normalize(raw) {
     out[g.key] = g.repeat ? (Array.isArray(d[g.key]) ? d[g.key].slice(0, 50) : []).map(s => pick(obj(s))) : pick(obj(d[g.key]));
   }
   out.notes = {};
-  for (const st of STEPS) if (!st.pre && typeof d.notes?.[st.key] === 'string' && d.notes[st.key].trim()) out.notes[st.key] = d.notes[st.key].trim();
+  for (const st of STEPS) if (typeof d.notes?.[st.key] === 'string' && d.notes[st.key].trim()) out.notes[st.key] = d.notes[st.key].trim();
   out.consent = { accurate: !!d.consent?.accurate, processing: !!d.consent?.processing };
   return out;
 }
