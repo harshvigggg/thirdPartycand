@@ -3,7 +3,8 @@ import { db, guard, BUCKET, UUID } from './_lib.js';
 import { STEPS } from '../public/schema.js';
 
 // Extracts answers from an uploaded CV so the form can be pre-filled. Only fields the form actually has are returned.
-const STR = { type: 'string' }, opt = (props, extra = {}) => ({ type: 'object', properties: props, additionalProperties: false, ...extra });
+// Every property is required (empty string / empty list when unknown): the API limits optional properties in output schemas.
+const STR = { type: 'string' }, opt = (props, extra = {}) => ({ type: 'object', properties: props, required: Object.keys(props), additionalProperties: false, ...extra });
 const month = { type: 'string', description: 'YYYY-MM, or empty if unknown' };
 const opts = key => { for (const s of STEPS) for (const g of s.groups) for (const f of g.fields) if (f.k === key && f.o) return f.o; };
 const SCHEMA = opt({
@@ -19,14 +20,46 @@ const SCHEMA = opt({
   skills: opt({ itSkills: { type: 'array', items: { type: 'string', enum: opts('itSkills') } } }),
 });
 
-const SYSTEM = `You extract facts from a nurse's CV into a fixed form. Fill only what the CV states or clearly implies; leave unknown fields as empty strings or omit them. Never invent values.
+const SYSTEM = `You extract facts from a nurse's CV into a fixed form. Fill only what the CV states or clearly implies; leave unknown fields as empty strings (or empty lists). Never invent values.
 Dates: use YYYY-MM for months, YYYY-MM-DD for the date of birth. Mark a job as current ("Yes") only if the CV says so (e.g. "present", "till date").
 Schooling = school / high school; college = university degrees, diplomas and vocational training. For "degree" pick the closest listed option; if none fits use "Other qualification" and put the CV's wording in degreeOther.
 List education and jobs in chronological order (oldest first). Country names in English. Phone as "+<country code> <number>".`;
 
+// Gemini (free tier) is the default parser; Claude is used only when no Gemini key is configured.
+async function withGemini(b64, mime) {
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const strip = o => Array.isArray(o) ? o.map(strip) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'additionalProperties').map(([k, v]) => [k, strip(v)])) : o;
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: 'Extract this CV into the form.' }] }],
+      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: strip(SCHEMA) },
+    }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`Gemini ${r.status}: ${j?.error?.message || ''}`);
+  const text = j.candidates?.[0]?.content?.parts?.map(x => x.text || '').join('') || '';
+  return text ? JSON.parse(text) : null;
+}
+
+async function withClaude(file) {
+  const client = new Anthropic();
+  const r = await client.beta.messages.create({
+    model: 'claude-opus-5-5', max_tokens: 16000,
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+    betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+    system: SYSTEM,
+    messages: [{ role: 'user', content: [file, { type: 'text', text: 'Extract this CV into the form.' }] }],
+  });
+  if (r.stop_reason === 'refusal') return null;
+  const text = r.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  return JSON.parse(text);
+}
+
 export default async function handler(req, res) {
   if (guard(req, res, 'parse', 10)) return;
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'CV reading is not set up yet.' });
+  if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'CV reading is not set up yet.' });
   const { session, path } = req.body || {};
   if (!UUID.test(String(session)) || typeof path !== 'string' || !path.startsWith(session.toLowerCase() + '/') || !/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png)$/.test(path))
     return res.status(400).json({ error: 'Please upload the CV again.' });
@@ -39,17 +72,9 @@ export default async function handler(req, res) {
     : { type: 'image', source: { type: 'base64', media_type: path.endsWith('.png') ? 'image/png' : 'image/jpeg', data: b64 } };
 
   try {
-    const client = new Anthropic();
-    const r = await client.beta.messages.create({
-      model: 'claude-opus-5-5', max_tokens: 16000,
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-      system: SYSTEM,
-      messages: [{ role: 'user', content: [file, { type: 'text', text: 'Extract this CV into the form.' }] }],
-    });
-    if (r.stop_reason === 'refusal') return res.status(422).json({ error: 'We could not read this CV.' });
-    const text = r.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    res.json({ data: JSON.parse(text) });
+    const data = process.env.GEMINI_API_KEY ? await withGemini(b64, pdf ? 'application/pdf' : path.endsWith('.png') ? 'image/png' : 'image/jpeg') : await withClaude(file);
+    if (!data) return res.status(422).json({ error: 'We could not read this CV.' });
+    res.json({ data });
   } catch (e) {
     console.error('parse-resume', e?.status, e?.message);
     res.status(502).json({ error: 'We could not read the CV right now. You can continue and type your answers.' });
