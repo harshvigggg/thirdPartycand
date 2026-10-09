@@ -6,7 +6,7 @@ const N = STEPS.length, app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const uploading = {}, previews = {}, slotField = {}, multiField = {}, filters = {};
 const fresh = () => ({ data: {}, step: 0, seen: 0, session: crypto.randomUUID() });
-let st, D, dirty = false;
+let st, D, dirty = false, reading = null; // `reading` is the in-flight CV extraction, if any
 
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s?.session && s.data) return s; } catch {}
@@ -68,6 +68,10 @@ function intro() {
 <ul><li>Passport</li><li>Education certificates</li><li>Language certificates, if any</li><li>Experience certificates, if any</li></ul>
 <p class="note">Files can be PDF, JPG or PNG, up to 10 MB each.</p>
 </section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">${has ? 'Continue' : 'Start'}</button></div>`;
+}
+// Shown when the candidate continues while the CV is still being read, so step 1 never appears empty and then fills itself.
+function loading() {
+  return `<section class="card done"><div class="spin" aria-hidden="true"></div><h2>Reading your CV…</h2><p>We are filling in your details for you. This usually takes under a minute.</p><p class="note">Please wait — the next page will open automatically.</p><div class="nav" style="justify-content:center"><button type="button" class="btn" data-act="skipcv">Skip and type myself</button></div></section>`;
 }
 
 function stepView(x) {
@@ -174,7 +178,7 @@ function showErrors(e) {
 }
 const busy = () => Object.values(uploading).some(a => a.length);
 
-function go(s) { if (s > N) st.ret = 0; st.step = s; st.seen = Math.max(st.seen, s); st.show = 0; save(); render(); scrollTo(0, 0); }
+function go(s) { st.waiting = 0; if (s > N) st.ret = 0; st.step = s; st.seen = Math.max(st.seen, s); st.show = 0; save(); render(); scrollTo(0, 0); }
 
 function next() {
   if (busy()) return toast('Please wait until your files finish uploading.');
@@ -240,7 +244,8 @@ async function upload(p, list) {
 }
 
 // Asks the server to read the CV and fills in answers the candidate has not typed yet.
-async function parseResume(path) {
+function parseResume(path) { reading = readCv(path).finally(() => { reading = null; }); return reading; }
+async function readCv(path) {
   const status = () => document.getElementById('cv-status');
   if (status()) status().textContent = 'Reading your CV… this takes about 20 seconds.';
   try {
@@ -248,11 +253,13 @@ async function parseResume(path) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'We could not read the CV.');
     const n = applyResume(j.data || {});
-    st.parsed = 1; save(); render();
+    st.parsed = 1; save();
+    if (st.waiting) go(1); else if (st.step === 0) render();
     toast(n ? `We filled in ${n} answer${n === 1 ? '' : 's'} from your CV. Please check them as you go.` : 'We could not find details to fill in from this CV. Please type them in.');
   } catch (e) {
     const m = `${e.message || 'We could not read details from this CV.'} Your CV is saved — please type your answers.`;
     if (status()) status().textContent = m;
+    if (st.waiting) go(1);
     toast(m);
   }
 }
@@ -317,7 +324,10 @@ app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const { act, s, g, i, del } = b.dataset;
   if (del) { set(del, get(del).filter((_, j) => j !== +i)); save(); return paintSlot(del); }
-  if (act === 'go') go(+s);
+  if (act === 'go') {
+    if (+s === 1 && st.step === 0 && reading) { st.waiting = 1; app.innerHTML = loading(); scrollTo(0, 0); return; }
+    go(+s);
+  } else if (act === 'skipcv') go(1);
   else if (act === 'edit') { st.ret = 1; go(+s); }
   else if (act === 'next') next();
   else if (act === 'submit') submit(b);
