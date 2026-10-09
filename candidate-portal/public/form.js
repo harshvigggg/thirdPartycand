@@ -286,6 +286,11 @@ function coerce(f, v) {
 function applyResume(x) {
   clearAutofill();
   let n = 0; const auto = st.auto = {};
+  // Guard against a common reader mistake: the candidate's own name landing in an institution / employer field.
+  const who = [x.basic?.firstName, x.basic?.lastName].filter(Boolean).join(' ').trim().toLowerCase();
+  const NAMEY = ['institution', 'institutionOriginal', 'institutionGerman', 'employer', 'employerGerman'];
+  if (who) for (const list of [x.college, x.schooling, x.employment]) for (const e of list || []) for (const k of NAMEY)
+    if (typeof e?.[k] === 'string' && e[k].trim().toLowerCase() === who) e[k] = '';
   for (const stp of STEPS) for (const g of stp.groups) {
     const src = x[g.key]; if (!src) continue;
     const keys = new Set(g.fields.filter(f => f.t !== 'file').map(f => f.k));
