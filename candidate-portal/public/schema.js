@@ -1,5 +1,5 @@
 // Single source of truth for the form: used by the candidate form, the review screen, the admin view and the API.
-import { DEGREES, HOME_QUALIFICATIONS, CAREER_BREAKS } from './catalogs.js';
+import { DEGREES, HOME_QUALIFICATIONS, CAREER_BREAKS, WORK_DEPARTMENTS, FACILITY_TYPES, EMPLOYMENT_TYPES, CHILDREN } from './catalogs.js';
 
 const names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' }) : null;
 const NON_COUNTRY = new Set(['AC', 'BV', 'CP', 'DG', 'EA', 'EU', 'EZ', 'HM', 'IC', 'QO', 'TA', 'UM', 'UN', 'XA', 'XB', 'ZZ']);
@@ -29,69 +29,79 @@ const german = g => g.learning === 'Yes';
 const examTaken = g => german(g) && !!g.examStatus && g.examStatus !== 'Exam Not Taken';
 const booked = g => german(g) && g.nextBooked === 'Yes';
 const VOLUNTARY = 'Voluntary work';
+const MARITAL = ['Single', 'Married', 'Divorced', 'Widowed', 'In a relationship', 'Engaged', 'Registered civil partnership', 'Prefer not to say'];
 const isGerman = l => /^\s*(german|deutsch)\s*$/i.test(l.name || '');
 
 // Field keys: k key, l label, t type, r required (bool or fn), if visibility fn, o options, ph placeholder, hint helper text.
-// Groups with `timeline: 1` render as a dated timeline; `order` sets which timeline block comes first.
+// Groups with `timeline: 1` render as a dated timeline. The step flagged `pre: 1` (documents) is collected on the intro page, before step 1.
+// Section order and field order follow the "Candidate Profile — 8 sections" sheet.
 export const STEPS = [
-  { key: 'personal', title: 'Personal Information', short: 'Personal', groups: [{ key: 'personal', fields: [
+  { key: 'basic', title: 'Basic Information', short: 'Basic', groups: [{ key: 'basic', fields: [
     { k: 'firstName', l: 'First Name', t: 'text', r: 1, name: 1, half: 1 },
-    { k: 'middleName', l: 'Middle Name', t: 'text', name: 1, half: 1 },
     { k: 'lastName', l: 'Last Name', t: 'text', r: 1, name: 1, half: 1 },
-    { k: 'dateOfBirth', l: 'Date of Birth', t: 'date', r: 1, past: 1, half: 1 },
-    { k: 'gender', l: 'Gender', t: 'radio', r: 1, o: ['Male', 'Female', 'Other', 'Prefer not to say'] },
     { k: 'nationality', l: 'Nationality', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-    { k: 'countryOfResidence', l: 'Country of Residence', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-    { k: 'currentCity', l: 'Current City', t: 'text', r: 1, half: 1 },
-    { k: 'maritalStatus', l: 'Marital Status', t: 'select', o: ['Single', 'Married', 'Divorced', 'Widowed', 'Prefer not to say'], half: 1 },
-    { k: 'passportNumber', l: 'Passport Number', t: 'text', pattern: /^[A-Za-z0-9]{6,12}$/, msg: 'Use 6–12 letters or numbers, without spaces.', hint: 'Leave blank if you do not have a passport yet.', half: 1 },
+    { k: 'profession', l: 'Current Profession', t: 'text', r: 1, half: 1, ph: 'e.g. Registered Nurse' },
+    { k: 'dateOfBirth', l: 'Date of Birth', t: 'date', r: 1, past: 1, half: 1 },
+    { k: 'germanLevel', l: 'Current German Level', t: 'select', o: ['None', ...CEFR], half: 1 },
+    { k: 'gender', l: 'Gender', t: 'radio', r: 1, o: ['Male', 'Female', 'Other', 'Prefer not to say'] },
   ] }] },
-  { key: 'contact', title: 'Contact Information', short: 'Contact', groups: [{ key: 'contact', fields: [
-    { k: 'phone', l: 'Mobile Number', t: 'phone', r: 1, hint: 'We will use this number for calls and WhatsApp.' },
-    { k: 'email', l: 'Email Address', t: 'email', r: 1 },
-    { k: 'address', l: 'Current Address', t: 'textarea', r: 1 },
-  ] }] },
-  { key: 'education', title: 'Education', short: 'Education', note: 'Start with your schooling, then add each college or training course in the order you did them. Please add every step so there are no gaps in your timeline.', groups: [
-    // School-leaving qualification ("Add Schooling"). Field list still to be confirmed against the reference form.
-    { key: 'schooling', title: '1. Schooling', timeline: 1, repeat: { min: 1, max: 5, item: 'School', add: 'Add Schooling', none: 'Add your school-leaving qualification (high school).' }, fields: [
-      { k: 'institution', l: 'Name of the school', t: 'text', r: 1, half: 1 },
-      { k: 'institutionOriginal', l: 'Name of the school (original language)', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-      { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'startDate', l: 'Start date', t: 'date', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
-      { k: 'certificate', l: 'School-leaving certificate', t: 'file' },
-    ] },
-    // Degree / vocational training ("Add College"). Labels and the two catalogs come from the reference system; see FORM_FIELD_MAP.md.
-    { key: 'college', title: '2. College / Vocational Training', timeline: 1, repeat: { min: 1, max: 10, item: 'College', add: 'Add College' }, fields: [
+  { key: 'college', title: 'College / Higher Education', short: 'College', note: 'Add each degree, diploma or vocational training in the order you did them.', groups: [
+    { key: 'college', timeline: 1, repeat: { min: 1, max: 10, item: 'College', add: 'Add College' }, fields: [
+      { k: 'institutionOriginal', l: 'Name of College in English (original language)', t: 'text', r: 1, half: 1 },
+      { k: 'institution', l: 'Name of College in German', t: 'text', half: 1, hint: 'Leave blank if you are not sure — we can translate it.' },
       { k: 'degree', l: 'Degree', t: 'select', r: 1, o: DEGREES },
       { k: 'degreeOther', l: 'Other degree', t: 'text', r: 1, if: e => e.degree === OTHER_DEGREE },
-      { k: 'homeQualification', l: 'Name of the Qualification in the Home Country', t: 'select', o: HOME_QUALIFICATIONS },
-      { k: 'homeQualificationOther', l: 'Other Qualification - Name of the Qualification in the Home Country', t: 'text', r: 1, if: e => e.homeQualification === OTHER_QUALIFICATION },
-      { k: 'institution', l: 'Name of the university, college or training institution (German)', t: 'text', r: 1, half: 1 },
-      { k: 'institutionOriginal', l: 'Name of the university, college or training institution (original language)', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End Date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'startDate', l: 'Start date', t: 'date', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
       { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
-      { k: 'certificate', l: 'Degree certificate / transcript', t: 'file' },
+      { k: 'homeQualification', l: 'Name of Qualification in Home Country', t: 'select', o: HOME_QUALIFICATIONS },
+      { k: 'homeQualificationOther', l: 'Other Qualification - Name of the Qualification in the Home Country', t: 'text', r: 1, if: e => e.homeQualification === OTHER_QUALIFICATION },
     ] },
   ] },
-  { key: 'employment', title: 'Work Experience', short: 'Experience', note: 'Add every job from your first to your current one. If there was a time when you were not working, add it as a career break so your timeline has no gaps.', groups: [
-    { key: 'employment', title: '1. Jobs', timeline: 1, repeat: { min: 0, max: 15, item: 'Job', add: 'Add Job', none: 'Add your jobs, starting with the first one. If you have no work experience yet, just continue.' }, fields: [
-      { k: 'employer', l: 'Employer Name', t: 'text', r: 1 },
-      { k: 'jobTitle', l: 'Job Title', t: 'text', r: 1, half: 1 },
-      { k: 'department', l: 'Department', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-      { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'current', l: 'Currently working here?', t: 'radio', r: 1, o: YN },
+  { key: 'personal', title: 'Personal Details / Contact', short: 'Personal', groups: [{ key: 'personal', fields: [
+    { k: 'placeOfBirth', l: 'Place of Birth', t: 'text', r: 1, half: 1 },
+    { k: 'countryOfBirth', l: 'Country of Birth', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+    { k: 'birthName', l: 'Birth Name', t: 'text', name: 1, half: 1, hint: 'Only if different from your current name.' },
+    { k: 'maritalStatus', l: 'Marital Status', t: 'select', o: MARITAL, half: 1 },
+    { k: 'children', l: 'Children', t: 'select', o: CHILDREN, half: 1 },
+    { k: 'street', l: 'Street / House Address', t: 'text', r: 1 },
+    { k: 'zip', l: 'Zip Code', t: 'text', r: 1, half: 1 },
+    { k: 'city', l: 'City', t: 'text', r: 1, half: 1 },
+    { k: 'phone', l: 'Phone Number', t: 'phone', r: 1, hint: 'We will use this number for calls and WhatsApp.' },
+    { k: 'email', l: 'Email Address', t: 'email', r: 1 },
+    { k: 'passportNumber', l: 'Passport Number', t: 'text', pattern: /^[A-Za-z0-9]{6,12}$/, msg: 'Use 6–12 letters or numbers, without spaces.', hint: 'Leave blank if you do not have a passport yet.', half: 1 },
+  ] }] },
+  { key: 'schooling', title: 'Schooling', short: 'Schooling', note: 'Your school education (high school / school-leaving qualification).', groups: [
+    { key: 'schooling', timeline: 1, repeat: { min: 1, max: 5, item: 'School', add: 'Add Schooling' }, fields: [
+      { k: 'institution', l: 'Name of School', t: 'text', r: 1, half: 1 },
+      { k: 'institutionGerman', l: 'Name of School in German', t: 'text', half: 1, hint: 'Leave blank if you are not sure — we can translate it.' },
       { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End Date', t: 'date', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
-      { k: 'responsibilities', l: 'Main Responsibilities', t: 'textarea', r: 1 },
-      { k: 'certificate', l: 'Experience Certificate', t: 'file' },
+      { k: 'endDate', l: 'End Date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'city', l: 'City', t: 'text', half: 1 },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
     ] },
-    // Career breaks: the type list comes from the reference system's catalog.
+  ] },
+  { key: 'employment', title: 'Work Experience', short: 'Work', note: 'Add every job and internship from your first to your current one. If there was a time when you were not working, add it as a career break so your timeline has no gaps.', groups: [
+    { key: 'employment', title: '1. Jobs & Internships', timeline: 1, repeat: { min: 0, max: 15, item: 'Job', add: 'Add Job', none: 'Add your jobs, starting with the first one. If you have no work experience yet, just continue.' }, fields: [
+      { k: 'jobTitle', l: 'Position', t: 'text', r: 1, half: 1, ph: 'e.g. Staff Nurse' },
+      { k: 'employer', l: 'Name of Hospital', t: 'text', r: 1, half: 1 },
+      { k: 'employerGerman', l: 'Name of Hospital in German', t: 'text', half: 1, hint: 'Leave blank if you are not sure — we can translate it.' },
+      { k: 'facilityType', l: 'Type of Facility', t: 'select', r: 1, o: FACILITY_TYPES, half: 1 },
+      { k: 'department', l: 'Department', t: 'select', r: 1, o: WORK_DEPARTMENTS },
+      { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'current', l: 'Currently working here?', t: 'radio', r: 1, o: YN },
+      { k: 'endDate', l: 'End Date', t: 'date', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
+      { k: 'employmentType', l: 'Employment Type', t: 'select', r: 1, o: EMPLOYMENT_TYPES, half: 1 },
+      { k: 'city', l: 'City', t: 'text', half: 1 },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'responsibilities', l: 'Tasks', t: 'textarea', r: 1, ph: 'Your main duties in this job' },
+      { k: 'conditions', l: 'Conditions Treated', t: 'textarea', ph: 'e.g. post-operative care, sepsis, stroke' },
+      { k: 'equipment', l: 'Equipment Used', t: 'textarea', ph: 'e.g. ventilator, infusion pump, ECG monitor' },
+      { k: 'certificate', l: 'Experience letter for this job', fn: 'Job Experience Letter', t: 'file' },
+    ] },
     { key: 'breaks', title: '2. Career Breaks', timeline: 1, repeat: { min: 0, max: 10, item: 'Career break', add: 'Add Career Break', none: 'Only needed if there was a time between studies and jobs when you were not working or studying.' }, fields: [
       { k: 'type', l: 'Type of career break', t: 'select', r: 1, o: CAREER_BREAKS },
       { k: 'purpose', l: 'Social or voluntary purpose', t: 'text', r: 1, if: e => e.type === VOLUNTARY },
@@ -99,54 +109,66 @@ export const STEPS = [
       { k: 'endDate', l: 'End date', t: 'date', past: 1, after: 'startDate', half: 1, hint: ONGOING },
     ] },
   ] },
-  { key: 'language', title: 'Language Details', short: 'Language', groups: [
-    { key: 'languages', repeat: { min: 1, max: 10, item: 'Language', add: 'Add Language' }, fields: [
-      { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English', half: 1 },
-      { k: 'fluency', l: 'Fluency', t: 'select', r: 1, o: SKILL, half: 1, if: l => !isGerman(l) },
-      { k: 'cefr', l: 'Fluency', t: 'select', r: 1, o: CEFR, half: 1, if: isGerman, hint: 'German is rated on the A1–C2 scale.' },
+  { key: 'skills', title: 'Skills and Certificates', short: 'Skills', groups: [
+    { key: 'skills', fields: [
+      { k: 'germanLevel', l: 'Current German Level', t: 'select', o: ['None', ...CEFR], half: 1, hint: 'Same as in Basic Information — change it here if needed.' },
+      { k: 'additionalSkills', l: 'Additional Skills', t: 'textarea', ph: 'Certificates, trainings, special skills' },
+      { k: 'drivingLicence', l: 'Driving License (car / four-wheeler)', t: 'radio', r: 1, o: YN },
+      { k: 'itSkills', l: 'IT Skills', t: 'multi', o: ['MS Office', 'MCC', 'SAP', 'NetWeaver', 'OpenOffice'] },
     ] },
-    { key: 'german', title: 'German Language', fields: [
-      { k: 'learning', l: 'Have you learned German or taken a German exam?', t: 'radio', r: 1, o: YN },
-      { k: 'level', l: 'Current German Level', t: 'select', r: 1, o: CEFR, if: german, half: 1 },
-      { k: 'examStatus', l: 'Exam Status', t: 'select', r: 1, o: ['Fully Passed', 'Partially Passed', 'Results Awaited', 'Not Passed', 'Exam Not Taken'], if: german, half: 1 },
-      { k: 'examProvider', l: 'Exam Provider', t: 'select', r: 1, o: PROVIDERS, if: examTaken, half: 1 },
-      { k: 'examDate', l: 'Exam Date', t: 'date', r: 1, past: 1, if: examTaken, half: 1 },
-      { k: 'certificate', l: 'German Exam Certificate / Result', t: 'file', if: examTaken },
+    { key: 'german', title: 'German Certificate', fields: [
+      { k: 'learning', l: 'Have you taken a German exam?', t: 'radio', r: 1, o: YN },
+      { k: 'examStatus', l: 'Exam Status', t: 'select', r: 1, o: ['Fully Passed', 'Partially Passed', 'Results Awaited', 'Not Passed'], if: german, half: 1 },
+      { k: 'examProvider', l: 'Exam Provider', t: 'select', r: 1, o: PROVIDERS, if: german, half: 1 },
+      { k: 'examLevel', l: 'Certified Level', t: 'select', r: 1, o: CEFR, if: german, half: 1 },
+      { k: 'examDate', l: 'Exam Date', t: 'date', r: 1, past: 1, if: german, half: 1 },
       { k: 'nextBooked', l: 'Have you booked your next exam?', t: 'radio', o: YN, if: german, hint: 'Optional' },
       { k: 'nextLevel', l: 'Exam Level', t: 'select', r: 1, o: CEFR, if: booked, third: 1 },
       { k: 'nextProvider', l: 'Provider', t: 'select', r: 1, o: PROVIDERS, if: booked, third: 1 },
       { k: 'nextDate', l: 'Confirmed Date', t: 'date', r: 1, future: 1, if: booked, third: 1 },
     ] },
   ] },
+  { key: 'language', title: 'Languages', short: 'Languages', groups: [
+    { key: 'languages', repeat: { min: 1, max: 10, item: 'Language', add: 'Add Language' }, fields: [
+      { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English', half: 1 },
+      { k: 'fluency', l: 'Proficiency', t: 'select', r: 1, o: SKILL, half: 1, if: l => !isGerman(l) },
+      { k: 'cefr', l: 'Proficiency', t: 'select', r: 1, o: CEFR, half: 1, if: isGerman, hint: 'German is rated on the A1–C2 scale.' },
+    ] },
+  ] },
   { key: 'preferences', title: 'Job Preferences', short: 'Preferences', note: 'Where you see boxes, you can choose more than one option.', groups: [{ key: 'preferences', fields: [
     { k: 'facilityTypes', l: 'Facility Type', t: 'multi', r: 1, o: FACILITIES, none: NP },
     { k: 'facilityOther', l: 'Other Facility Type', t: 'text', r: 1, if: picked('facilityTypes', 'Other') },
-    { k: 'departments', l: 'Departments', t: 'multi', r: 1, o: DEPARTMENTS, none: NP },
+    { k: 'departments', l: 'Department', t: 'multi', r: 1, o: DEPARTMENTS, none: NP },
     { k: 'departmentOther', l: 'Other Department', t: 'text', r: 1, if: picked('departments', 'Other') },
-    { k: 'states', l: 'Preferred States', t: 'multi', r: 1, o: STATES, none: NP },
+    { k: 'states', l: 'State', t: 'multi', r: 1, o: STATES, none: NP },
     { k: 'region', l: 'Region', t: 'radio', r: 1, o: ['City', 'Rural', 'Both'] },
     { k: 'salaryBefore', l: 'Salary Before Recognition', t: 'text', r: 1, ph: 'e.g. €2,800 gross per month', half: 1 },
     { k: 'salaryAfter', l: 'Salary After Recognition', t: 'text', r: 1, ph: 'e.g. €3,400 gross per month', half: 1 },
-    { k: 'adjustmentMeasures', l: 'Adjustment Measure', t: 'multi', r: 1, o: [NP, 'Adaptation course', 'Preparatory course for knowledge examination'], none: NP },
+    { k: 'adjustmentMeasures', l: 'Adjustment Measures', t: 'multi', r: 1, o: [NP, 'Adaptation course', 'Preparatory course for knowledge examination'], none: NP },
     { k: 'familyReunification', l: 'Family Reunification', t: 'radio', r: 1, o: ['Family reunification at job start', 'Family reunification after recognition', 'No family reunification (single, no children)', 'Other'] },
     { k: 'familyOther', l: 'Please specify', t: 'text', r: 1, if: s => s.familyReunification === 'Other' },
   ] }] },
-  { key: 'skills', title: 'Additional Skills & Knowledge', short: 'Skills', groups: [{ key: 'skills', fields: [
-    { k: 'drivingLicence', l: 'Do you have a driving licence for a car (four-wheeler)?', t: 'radio', r: 1, o: YN },
-    { k: 'itSkills', l: 'IT Skills', t: 'multi', o: ['MS Office', 'MCC', 'SAP', 'NetWeaver', 'OpenOffice'] },
-  ] }] },
-  { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
-    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1 },
-    { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => !!d.personal?.passportNumber },
+  // Collected on the intro page. Each document is read to pre-fill the sections above (see DOC_KINDS).
+  { key: 'documents', title: 'Documents', short: 'Documents', pre: 1, groups: [{ key: 'documents', fields: [
+    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, hint: 'Used for your profession, schooling, work experience, languages and skills.' },
+    { k: 'passport', l: 'Passport', t: 'file', hint: 'Used for nationality, date and place of birth, gender and passport number.' },
+    { k: 'nationalId', l: 'National ID', t: 'file', hint: 'Used for your birth name, marital status and current address.' },
+    { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file', hint: 'Used for your college, degree, country and diploma date.' },
+    { k: 'transcript', l: 'College Transcript', t: 'file', multi: 1, hint: 'Used for your college start and end dates.' },
+    { k: 'germanCertificate', l: 'German Language Certificate', t: 'file', hint: 'Used for your German level.' },
+    { k: 'experienceLetters', l: 'Internship / Job Experience Letters', fn: 'Experience Letter', t: 'file', multi: 1, hint: 'Used for your work experience: hospital, department, dates, tasks and equipment.' },
     { k: 'photo', l: 'Profile Photo', t: 'file' },
-    { k: 'degree', l: 'Degree Certificate', t: 'file' },
     { k: 'marksheets', l: 'Academic Marksheets', t: 'file', multi: 1 },
     { k: 'registration', l: 'Professional Registration', t: 'file' },
-    { k: 'languageCertificate', l: 'Language Certificate', t: 'file', multi: 1 },
-    { k: 'employmentCertificate', l: 'Employment Certificate', t: 'file', multi: 1 },
     { k: 'other', l: 'Other Supporting Documents', t: 'file', multi: 1 },
   ] }] },
 ];
+// Document fields that are read to pre-fill the form, in priority order, with the label the reader sees.
+export const DOC_KINDS = { cv: 'CV', passport: 'Passport', nationalId: 'National ID', degree: 'Degree certificate', transcript: 'College transcript', germanCertificate: 'German language certificate', experienceLetters: 'Internship / job experience letter' };
+// Steps shown in the stepper (the document step is collected up front).
+export const FORM_STEPS = STEPS.filter(s => !s.pre);
+// Free-text notes per page, stored under `notes.<stepKey>`.
+export const NOTES = { l: 'Notes', t: 'textarea', ph: 'Anything you would like to add or explain about this page (optional)' };
 
 export const today = (offset = 0) => { const d = new Date(Date.now() + offset * 864e5); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 export const visible = (f, s, d) => !f.if || !!f.if(s || {}, d || {});
@@ -193,6 +215,7 @@ export function validate(d, o = {}) {
       a.forEach((s, i) => each(s || {}, `${g.key}.${i}`));
     } else each(d[g.key] || {}, g.key);
   }
+  for (const st of o.step ? [o.step] : STEPS) if (!st.pre) { const v = d.notes?.[st.key]; if (typeof v === 'string' && v.length > 2000) e[`notes.${st.key}`] = 'This answer is too long.'; }
   if (!o.step && !(d.consent?.accurate && d.consent?.processing)) e.consent = 'Please tick both boxes to continue.';
   return e;
 }
@@ -215,17 +238,19 @@ export function normalize(raw) {
     };
     out[g.key] = g.repeat ? (Array.isArray(d[g.key]) ? d[g.key].slice(0, 50) : []).map(s => pick(obj(s))) : pick(obj(d[g.key]));
   }
+  out.notes = {};
+  for (const st of STEPS) if (!st.pre && typeof d.notes?.[st.key] === 'string' && d.notes[st.key].trim()) out.notes[st.key] = d.notes[st.key].trim();
   out.consent = { accurate: !!d.consent?.accurate, processing: !!d.consent?.processing };
   return out;
 }
 
 // Display / download names for uploaded files: "<Candidate name>'s <Field label>[ 2].<ext>".
 export function fileNames(d) {
-  const who = [d.personal?.firstName, d.personal?.lastName].filter(Boolean).join(' ').trim() || 'Candidate', out = {};
+  const who = [d.basic?.firstName, d.basic?.lastName].filter(Boolean).join(' ').trim() || 'Candidate', out = {};
   for (const st of STEPS) for (const g of st.groups) (g.repeat ? d[g.key] || [] : [d[g.key] || {}]).forEach((s, i) => {
     for (const f of g.fields) if (f.t === 'file') (s[f.k] || []).forEach((x, j) => {
       const ext = (x.path || '').split('.').pop() || 'pdf', n = (g.repeat ? ` ${i + 1}` : '') + (j ? ` (${j + 1})` : '');
-      out[x.path] = `${who}'s ${f.l.replace(/\s*\/.*$/, '')}${n}.${ext}`;
+      out[x.path] = `${who}'s ${f.fn || f.l.replace(/\s*\/.*$/, '')}${n}.${ext}`;
     });
   });
   return out;
@@ -288,6 +313,7 @@ export function sections(raw) {
       const m = g.key === 'employment' && experience(d.employment);
       if (m) items.push({ l: 'Total Professional Experience', v: months(m) });
     }
+    if (d.notes[st.key]) items.push({ l: 'Notes', v: d.notes[st.key] });
     return { i, title: st.title, items };
   });
 }

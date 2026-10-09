@@ -1,8 +1,8 @@
-import { STEPS, COUNTRIES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
+import { STEPS, FORM_STEPS, DOC_KINDS, NOTES, COUNTRIES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
 
 const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024, TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
-const N = STEPS.length, app = document.getElementById('app');
+const N = FORM_STEPS.length, app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const uploading = {}, previews = {}, slotField = {}, multiField = {}, filters = {};
 const fresh = () => ({ data: {}, step: 0, seen: 0, session: crypto.randomUUID() });
@@ -25,7 +25,7 @@ function init(s) {
   for (const x of STEPS) for (const g of x.groups) for (const e of g.repeat ? D[g.key] || [] : [D[g.key] || {}])
     for (const f of g.fields) if (f.t === 'date' && /^\d{4}-\d{2}$/.test(e?.[f.k] || '')) e[f.k] += '-01';
   for (const x of STEPS) for (const g of x.groups) D[g.key] ??= g.repeat ? (g.repeat.min ? [{}] : []) : {};
-  D.consent ??= {};
+  D.notes ??= {}; D.consent ??= {};
 }
 function save() {
   dirty = false;
@@ -37,7 +37,7 @@ function set(p, v) {
   const k = p.split('.'), last = k.pop(), o = k.reduce((o, x) => o?.[x], D);
   if (o) { o[last] = v; dirty = true; }
 }
-const errors = () => validate(D, { step: STEPS[st.step - 1], client: 1 });
+const errors = () => validate(D, { step: FORM_STEPS[st.step - 1], client: 1 });
 let tt;
 function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.className = 'show'; clearTimeout(tt); tt = setTimeout(() => t.className = '', 4000); }
 
@@ -45,36 +45,44 @@ function toast(m) { const t = document.getElementById('toast'); t.textContent = 
 
 function render() {
   const s = st.step;
-  app.innerHTML = s === 0 ? intro() : s <= N ? stepView(STEPS[s - 1]) : review();
+  app.innerHTML = s === 0 ? intro() : s <= N ? stepView(FORM_STEPS[s - 1]) : review();
   if (s >= 1 && s <= N) { paintTotal(); if (st.show) showErrors(errors()); }
 }
 
 function stepper(cur) {
   const pct = cur >= N ? 100 : Math.round((cur + 1) / N * 100);
-  return `<ol class="stepper">${STEPS.map((x, i) => `<li class="${i < cur ? 'past' : i === cur ? 'cur' : ''}"><button type="button" data-act="go" data-s="${i + 1}"${i + 1 > st.seen ? ' disabled' : ''} aria-label="Step ${i + 1}: ${x.short}${i < cur ? ' (completed)' : ''}"><i>${i < cur ? '✓' : ''}</i><span>${x.short}</span></button></li>`).join('')}</ol>
+  return `<ol class="stepper">${FORM_STEPS.map((x, i) => `<li class="${i < cur ? 'past' : i === cur ? 'cur' : ''}"><button type="button" data-act="go" data-s="${i + 1}"${i + 1 > st.seen ? ' disabled' : ''} aria-label="Step ${i + 1}: ${x.short}${i < cur ? ' (completed)' : ''}"><i>${i < cur ? '✓' : ''}</i><span>${x.short}</span></button></li>`).join('')}</ol>
 <div class="prog"><span>${cur >= N ? 'Review' : `Step ${cur + 1} of ${N}`}</span><span>${pct}% Complete</span></div>`;
 }
 
-const CV = 'documents.cv';
+const DOCS = STEPS.find(x => x.key === 'documents').groups[0];
+// Uploaded documents that can be read, in priority order, as [{ kind, path }].
+const docList = () => Object.keys(DOC_KINDS).flatMap(k => (D.documents[k] || []).map(x => ({ kind: k, path: x.path })));
+const docsKey = () => docList().map(d => d.path).join('|');
+const introState = () => { const n = docList().length, fresh = n && docsKey() !== st.docsRead; return { n, fresh,
+  status: st.docsRead && !fresh ? 'Your documents have been read. Continue to check each page.' : fresh ? 'When you continue, we will read your documents and fill in the form.' : '',
+  button: fresh ? 'Read my documents & continue' : n ? 'Continue' : 'Start without documents' }; };
+// Keeps the intro's status line and button in step with the uploaded documents without re-rendering the slots.
+function paintIntro() {
+  if (st.step !== 0) return;
+  const { status, button } = introState(), el = document.getElementById('cv-status'), b = app.querySelector('[data-act=go][data-s="1"]');
+  if (el) el.textContent = status; if (b) b.textContent = button;
+}
 function intro() {
-  slotField[CV] = STEPS.find(x => x.key === 'documents').groups[0].fields.find(f => f.k === 'cv');
-  const has = (get(CV) || []).length;
+  const { status, button } = introState();
   return `<section class="card intro">
 <h2>Welcome</h2>
-<p>This form collects the details we need for your application. It takes about 15 minutes.</p>
+<p>This form collects the details we need for your application. Upload your documents first — we read them and fill in most of the form for you, so you mostly just check and confirm.</p>
 <p>Your answers are saved automatically on this device, so you can come back later and continue.</p>
-<h3>Start with your CV <span class="tag">Recommended</span></h3>
-<p class="note">Upload your CV and we will fill in as much of the form as we can for you. You can check and change everything afterwards.</p>
-<div data-f="${CV}"><div class="slot" data-slot="${CV}">${slot(CV)}</div><div class="err"></div></div>
-<p class="note" id="cv-status">${has ? (st.parsed ? 'We filled in details from your CV. Please check each step.' : '') : 'No CV yet? You can also skip this and type everything yourself.'}</p>
-<h3>Please keep these ready</h3>
-<ul><li>Passport</li><li>Education certificates</li><li>Language certificates, if any</li><li>Experience certificates, if any</li></ul>
-<p class="note">Files can be PDF, JPG or PNG, up to 10 MB each.</p>
-</section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">${has ? 'Continue' : 'Start'}</button></div>`;
+<p class="note">Files can be PDF, JPG or PNG, up to 10 MB each. Only the CV is required; every extra document means fewer questions to type.</p>
+<h3>Your documents</h3>
+<div class="grid">${DOCS.fields.map(f => field(f, D.documents, 'documents')).join('')}</div>
+<p class="note" id="cv-status">${status}</p>
+</section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">${button}</button></div>`;
 }
-// Shown when the candidate continues while the CV is still being read, so step 1 never appears empty and then fills itself.
-function loading() {
-  return `<section class="card done"><div class="spin" aria-hidden="true"></div><h2>Reading your CV…</h2><p>We are filling in your details for you. This usually takes under a minute.</p><p class="note">Please wait — the next page will open automatically.</p><div class="nav" style="justify-content:center"><button type="button" class="btn" data-act="skipcv">Skip and type myself</button></div></section>`;
+// Shown while the documents are being read, so step 1 never appears empty and then fills itself.
+function loading(n) {
+  return `<section class="card done"><div class="spin" aria-hidden="true"></div><h2>Reading your ${n === 1 ? 'document' : `${n} documents`}…</h2><p>We are filling in your details for you. This usually takes one to two minutes.</p><p class="note">Please wait — the next page will open automatically.</p><div class="nav" style="justify-content:center"><button type="button" class="btn" data-act="skipcv">Skip and type myself</button></div></section>`;
 }
 
 function stepView(x) {
@@ -94,17 +102,19 @@ function stepView(x) {
     if (a.length < r.max) h += `<button type="button" class="add" data-act="add" data-g="${g.key}">+ ${r.add}</button>`;
     if (g.key === 'employment') h += '<p class="total" id="total"></p>';
   }
-  const tl = x.groups.filter(g => g.timeline);
-  if (tl.length) {
-    const miss = gaps(tl.map(g => D[g.key]));
+  if (x.groups.some(g => g.timeline)) {
+    const miss = gaps(timelineLists());
     h += `<div class="gap" id="gaps"${miss.length ? '' : ' hidden'}>${gapText(miss)}</div>`;
   }
+  h += `<h3>Notes</h3>${field({ ...NOTES, k: x.key }, D.notes, 'notes')}`;
   return h + `</section><div class="nav"><button type="button" class="btn" data-act="go" data-s="${st.step - 1}">Back</button><button type="button" class="btn primary" data-act="next">${st.ret ? 'Save &amp; Return to Review' : 'Save &amp; Continue'}</button></div>`;
 }
-const gapText = miss => miss.length ? `<b>Your timeline has a gap:</b> ${esc(miss.join('; '))}. Please add what you did during this time (for example a job, a course or a career break) so nothing is missing.` : '';
+const gapText = miss => miss.length ? `<b>Your timeline has a gap:</b> ${esc(miss.join('; '))}. Please add what you did during this time (for example schooling, a course, a job or a career break) so nothing is missing.` : '';
+// Schooling, college, jobs and breaks share one timeline, whichever page they are entered on.
+const timelineLists = () => FORM_STEPS.flatMap(x => x.groups.filter(g => g.timeline).map(g => D[g.key]));
 function paintGaps() {
   const el = document.getElementById('gaps'); if (!el) return;
-  const tl = STEPS[st.step - 1].groups.filter(g => g.timeline), miss = gaps(tl.map(g => D[g.key]));
+  const miss = gaps(timelineLists());
   el.innerHTML = gapText(miss); el.hidden = !miss.length;
   app.querySelectorAll('.tl .entry').forEach(en => {
     const [g, i] = en.querySelector('[data-p]')?.dataset.p.split('.') || [];
@@ -197,7 +207,8 @@ async function submit(b) {
   if (busy()) return toast('Please wait until your files finish uploading.');
   const e = validate(D, { client: 1 }), bad = Object.keys(e).find(k => k !== 'consent');
   if (bad) {
-    st.ret = 1; go(STEPS.findIndex(x => x.groups.some(g => g.key === bad.split('.')[0])) + 1);
+    const [grp, sub] = bad.split('.');
+    st.ret = 1; go(grp === 'documents' ? 0 : grp === 'notes' ? FORM_STEPS.findIndex(x => x.key === sub) + 1 : FORM_STEPS.findIndex(x => x.groups.some(g => g.key === grp)) + 1);
     st.show = 1; showErrors(errors());
     return toast('Some details are missing. Please complete the highlighted fields.');
   }
@@ -239,34 +250,38 @@ async function upload(p, list) {
       await put(j.url, file, n => { u.pct = n; paintSlot(p); });
       previews[j.path] = URL.createObjectURL(file);
       const item = { name: file.name.slice(0, 200), path: j.path, type: file.type, size: file.size };
-      set(p, f.multi ? [...(get(p) || []), item] : [item]); save();
-      if (p === CV && st.step === 0) parseResume(item.path);
+      set(p, f.multi ? [...(get(p) || []), item] : [item]); save(); paintIntro();
     } catch (e) { fileErr(p, e.message || 'Upload failed. Please try again.'); }
     uploading[p] = uploading[p].filter(x => x !== u); paintSlot(p);
   }
 }
 
-// Asks the server to read the CV and fills in answers the candidate has not typed yet.
-function parseResume(path) { reading = readCv(path).finally(() => { reading = null; }); return reading; }
-async function readCv(path) {
-  const status = () => document.getElementById('cv-status');
-  if (status()) status().textContent = 'Reading your CV… this takes about 20 seconds.';
+// Asks the server to read every uploaded document and fills in answers the candidate has not typed yet.
+function readDocs() { reading = readAll().finally(() => { reading = null; }); return reading; }
+async function readAll() {
+  const docs = docList(), key = docsKey();
   try {
-    const r = await fetch('/api/parse-resume', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: st.session, path }) });
+    const r = await fetch('/api/parse-docs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: st.session, docs }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'We could not read the CV.');
+    if (!r.ok) throw new Error(j.error || 'We could not read your documents.');
     const n = applyResume(j.data || {});
-    st.parsed = 1; save();
-    if (st.waiting) go(1); else if (st.step === 0) render();
-    toast(n ? `We filled in ${n} answer${n === 1 ? '' : 's'} from your CV. Please check them as you go.` : 'We could not find details to fill in from this CV. Please type them in.');
-  } catch (e) {
-    const m = `${e.message || 'We could not read details from this CV.'} Your CV is saved — please type your answers.`;
-    if (status()) status().textContent = m;
+    st.docsRead = key; save();
     if (st.waiting) go(1);
-    toast(m);
+    toast(n ? `We filled in ${n} answer${n === 1 ? '' : 's'} from your documents. Please check them as you go.` : 'We could not find details to fill in from these documents. Please type them in.');
+  } catch (e) {
+    toast(`${e.message || 'We could not read your documents.'} They are saved — please type your answers.`);
+    if (st.waiting) go(1);
   }
 }
 const filled = v => v != null && v !== '' && !(Array.isArray(v) && !v.length);
+// Maps an extracted value onto the field's option list (exact, then case-insensitive containment); unmatched choices are dropped.
+function coerce(f, v) {
+  if (!f || v == null) return v;
+  if (f.t === 'multi') return Array.isArray(v) ? v.map(x => coerce({ ...f, t: 'select' }, x)).filter(Boolean) : [];
+  if (!f.o || typeof v !== 'string') return v;
+  const s = v.trim().toLowerCase(); if (!s) return '';
+  return f.o.find(o => o.toLowerCase() === s) || f.o.find(o => o.toLowerCase().includes(s)) || f.o.find(o => s.includes(o.toLowerCase())) || '';
+}
 // Merges extracted answers into the draft without overwriting anything already typed. Returns how many answers were filled.
 function applyResume(x) {
   clearAutofill();
@@ -274,7 +289,8 @@ function applyResume(x) {
   for (const stp of STEPS) for (const g of stp.groups) {
     const src = x[g.key]; if (!src) continue;
     const keys = new Set(g.fields.filter(f => f.t !== 'file').map(f => f.k));
-    const fill = (dst, s, base) => { for (const k of keys) if (filled(s?.[k]) && !filled(dst[k])) { dst[k] = s[k]; auto[`${base}.${k}`] = JSON.stringify(s[k]); n++; } };
+    const fields = Object.fromEntries(g.fields.map(f => [f.k, f]));
+    const fill = (dst, s, base) => { for (const k of keys) { const v = coerce(fields[k], s?.[k]); if (filled(v) && !filled(dst[k])) { dst[k] = v; auto[`${base}.${k}`] = JSON.stringify(v); n++; } } };
     if (!g.repeat) { fill(D[g.key], src, g.key); continue; }
     if (!Array.isArray(src)) continue;
     const typed = D[g.key].some(e => Object.values(e).some(filled));
@@ -336,11 +352,15 @@ app.addEventListener('change', e => {
 app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const { act, s, g, i, del } = b.dataset;
-  if (del) { set(del, get(del).filter((_, j) => j !== +i)); save(); return paintSlot(del); }
+  if (del) { set(del, get(del).filter((_, j) => j !== +i)); save(); paintSlot(del); return paintIntro(); }
   if (act === 'go') {
-    if (+s === 1 && st.step === 0 && reading) { st.waiting = 1; app.innerHTML = loading(); scrollTo(0, 0); return; }
+    if (+s === 1 && st.step === 0) {
+      if (busy()) return toast('Please wait until your files finish uploading.');
+      const docs = docList();
+      if (docs.length && docsKey() !== st.docsRead) { if (!reading) readDocs(); st.waiting = 1; app.innerHTML = loading(docs.length); scrollTo(0, 0); return; }
+    }
     go(+s);
-  } else if (act === 'skipcv') go(1);
+  } else if (act === 'skipcv') { st.docsRead = docsKey(); go(1); }
   else if (act === 'edit') { st.ret = 1; go(+s); }
   else if (act === 'next') next();
   else if (act === 'submit') submit(b);

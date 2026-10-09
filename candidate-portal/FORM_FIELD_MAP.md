@@ -109,3 +109,22 @@ These deliberately diverge from the reference form and override earlier rows:
 - **Career breaks:** `breaks[]` with the verified 13-type catalog; *Social or voluntary purpose* shown for "Voluntary work" (placement of that conditional is inferred — confirm).
 - **Admin candidate file:** opening a submission shows a *Timeline gaps* card (education, work, overall) and a **Download Candidate File** button producing `CAND-XXXX.txt` with every answer plus the gap list; *Copy Full Candidate Data* includes the same gap section.
 - **2026-10-09 (later):** all start/end dates are full dates (`YYYY-MM-DD`), displayed as "14 March 2017" in review, admin and the candidate file; the CV parser uses the 1st of the month when a CV gives only month/year. In the Languages list, German is rated on A1–C2 (`cefr`) instead of the Native–Basic scale. Progress bar is a dotted stepper (✓ done / current / pending).
+
+## Restructure to the "Candidate Profile — 8 sections" sheet (2026-10-09)
+
+Pages now follow the sheet, in this order, with fields in the sheet's order; every page ends with a free-text **Notes** box (`notes.<page>`), shown on the review screen, in the admin view and in the candidate file.
+
+| # | Page | Fields (sheet order) | Pre-filled from |
+|---|---|---|---|
+| 0 | Documents (intro) | CV*, Passport, National ID, Degree certificate, College transcript(s), German certificate, Experience letter(s), photo, marksheets, registration, other | — all read together on "Read my documents & continue" |
+| 1 | Basic Information | First/Last name (added — not on the sheet), Nationality, Current Profession, Date of Birth, Current German Level, Gender | Passport, CV, German cert |
+| 2 | College / Higher Education | Name (original), Name in German, Degree, Start, End, City, Country, Diploma Date, Qualification in Home Country | Degree cert, transcript |
+| 3 | Personal Details / Contact | Place of Birth, Country of Birth, Birth Name, Marital Status, Children, Street, Zip, City, Phone, Email (added), Passport Number | Passport, National ID, CV |
+| 4 | Schooling | Name, Name in German, Start, End, City, Country, Diploma Date | CV |
+| 5 | Work Experience | Position, Hospital, Hospital in German, Type of Facility, Department, Start, End, Employment Type, City, Country, Tasks, Conditions Treated, Equipment Used (+ Career Breaks sub-list) | Experience letters + CV |
+| 6 | Skills and Certificates | Current German Level, Additional Skills, Driving License, IT Skills (+ German exam details) | German cert, CV |
+| 7 | Languages | Language, Proficiency (A1–C2 for German) | CV, German cert |
+| 8 | Job Preferences | Facility Type, Department, State, Region, Salary Before/After Recognition, Adjustment Measures, Family Reunification | candidate input |
+
+Catalogs: Type of Facility = reference `einrichtungstyp` (+ Other), Department = reference `abteilung` (92), Employment Type = `beschaftigungsverhaltnis` (8), Children = `children` (6).
+Document reading: `api/parse-docs.js` sends every uploaded document (up to ~18 MB total) to Gemini in one request; free-text choices (department, home qualification) are matched onto the form's option lists in the browser.

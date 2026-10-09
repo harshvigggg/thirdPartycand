@@ -2,16 +2,38 @@
   "framework": null,
   "outputDirectory": "public",
   "cleanUrls": true,
-  "rewrites": [{ "source": "/candidate-form", "destination": "/" }],
+  "rewrites": [
+    {
+      "source": "/candidate-form",
+      "destination": "/"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/parse-docs.js": {
+      "maxDuration": 60
+    }
+  }
 }

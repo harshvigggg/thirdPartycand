@@ -14,12 +14,12 @@ export default async function handler(req, res) {
   if (Object.keys(fields).length) return res.status(400).json({ error: 'Some answers are missing or invalid. Please review the form.', fields });
   if (filePaths(clean).some(p => !p.startsWith(session.toLowerCase() + '/'))) return res.status(400).json({ error: 'Please upload your documents again.' });
 
-  const p = clean.personal, sb = db();
+  const p = clean.basic, sb = db();
   for (let i = 0; i < 3; i++) {
     const ref = refId();
     const { error } = await sb.from('submissions').insert({
-      ref, data: clean, email: clean.contact.email, phone: clean.contact.phone,
-      full_name: [p.firstName, p.middleName, p.lastName].filter(Boolean).join(' '),
+      ref, data: clean, email: clean.personal.email, phone: clean.personal.phone,
+      full_name: [p.firstName, p.lastName].filter(Boolean).join(' '),
     });
     if (!error) return res.json({ ref });
     if (error.code !== '23505') break; // retry only on duplicate reference
