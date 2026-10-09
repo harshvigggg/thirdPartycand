@@ -1,4 +1,5 @@
 // Single source of truth for the form: used by the candidate form, the review screen, the admin view and the API.
+import { DEGREES, HOME_QUALIFICATIONS } from './catalogs.js';
 
 const names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' }) : null;
 const NON_COUNTRY = new Set(['AC', 'BV', 'CP', 'DG', 'EA', 'EU', 'EZ', 'HM', 'IC', 'QO', 'TA', 'UM', 'UN', 'XA', 'XB', 'ZZ']);
@@ -11,6 +12,19 @@ const YN = ['Yes', 'No'];
 const SKILL = ['Native', 'Fluent', 'Advanced', 'Intermediate', 'Basic'];
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const PROVIDERS = ['Goethe-Institut', 'telc', 'ÖSD', 'TestDaF', 'ECL', 'Other'];
+const NP = 'No preference';
+const FACILITIES = [NP, 'Hospital', 'Rehabilitation clinic', 'Outpatient care', 'Home care', 'Other'];
+const DEPARTMENTS = [NP, ...['Anesthesiology', 'Cardiology', 'Cardiac Surgery', 'Central Sterile Services', 'Dermatology', 'Emergency Department', 'Endocrinology',
+  'Endoscopy', 'ENT (Ear, Nose & Throat)', 'Gastroenterology', 'General Surgery', 'Geriatrics', 'Gynecology & Obstetrics', 'Hematology & Oncology',
+  'Infectious Diseases', 'Intensive Care (ICU)', 'Internal Medicine', 'Long-term / Elderly Care', 'Neonatology (NICU)', 'Nephrology & Dialysis',
+  'Neurology', 'Neurosurgery', 'Nuclear Medicine', 'Operating Theatre (OR)', 'Ophthalmology', 'Orthopedics', 'Palliative Care', 'Pediatrics',
+  'Plastic Surgery', 'Psychiatry', 'Psychosomatics', 'Pulmonology', 'Radiology', 'Rehabilitation', 'Rheumatology', 'Stroke Unit',
+  'Thoracic Surgery', 'Trauma Surgery', 'Urology', 'Vascular Surgery'], 'Other'];
+const STATES = [NP, 'Baden-Württemberg', 'Bavaria', 'Berlin', 'Brandenburg', 'Bremen', 'Hamburg', 'Hesse', 'Lower Saxony', 'Mecklenburg-Western Pomerania',
+  'North Rhine-Westphalia', 'Rhineland-Palatinate', 'Saarland', 'Saxony', 'Saxony-Anhalt', 'Schleswig-Holstein', 'Thuringia'];
+const OTHER_DEGREE = 'Other qualification', OTHER_QUALIFICATION = 'Other qualification';
+const ONGOING = 'If no date is entered, this experience is considered ongoing to date.';
+const picked = (k, x) => s => Array.isArray(s[k]) && s[k].includes(x);
 const hasPassport = s => s.passportStatus === 'Yes';
 const german = g => g.learning === 'Yes';
 const examTaken = g => german(g) && !!g.examStatus && g.examStatus !== 'Exam Not Taken';
@@ -41,19 +55,33 @@ export const STEPS = [
     { k: 'altPhone', l: 'Alternate Mobile Number', t: 'phone' },
     { k: 'address', l: 'Current Address', t: 'textarea', r: 1 },
   ] }] },
-  { key: 'education', title: 'Education', short: 'Education', groups: [{ key: 'education',
-    repeat: { min: 1, max: 10, item: 'Qualification', add: 'Add Education' }, fields: [
-      { k: 'level', l: 'Qualification Level', t: 'select', r: 1, o: ['Secondary (10th)', 'Higher Secondary (12th)', 'Diploma', "Bachelor's Degree", "Master's Degree", 'Doctorate', 'Other'] },
-      { k: 'course', l: 'Degree / Course Name', t: 'text', r: 1 },
-      { k: 'specialization', l: 'Specialization', t: 'text' },
-      { k: 'institution', l: 'Institution', t: 'text', r: 1, half: 1 },
-      { k: 'university', l: 'University / Board', t: 'text', r: 1, half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, ph: 'Start typing a country' },
-      { k: 'status', l: 'Study Status', t: 'radio', r: 1, o: ['Completed', 'Ongoing'] },
-      { k: 'startDate', l: 'Start Date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End Date', t: 'month', r: 1, if: e => e.status !== 'Ongoing', after: 'startDate', half: 1 },
-      { k: 'certificate', l: 'Certificate / Marksheet', t: 'file' },
-    ] }] },
+  { key: 'education', title: 'Education', short: 'Education', note: 'Please also add a school-leaving qualification in addition to your degree or vocational training so that the profile is 100% complete.', groups: [
+    // Degree / vocational training ("Add College"). Labels and the two catalogs come from the reference system; see FORM_FIELD_MAP.md.
+    { key: 'college', title: 'College / Vocational Training', repeat: { min: 1, max: 10, item: 'College', add: 'Add College' }, fields: [
+      { k: 'degree', l: 'Degree', t: 'select', r: 1, o: DEGREES },
+      { k: 'degreeOther', l: 'Other degree', t: 'text', r: 1, if: e => e.degree === OTHER_DEGREE },
+      { k: 'homeQualification', l: 'Name of the Qualification in the Home Country', t: 'select', o: HOME_QUALIFICATIONS },
+      { k: 'homeQualificationOther', l: 'Other Qualification - Name of the Qualification in the Home Country', t: 'text', r: 1, if: e => e.homeQualification === OTHER_QUALIFICATION },
+      { k: 'institution', l: 'Name of the university, college or training institution (German)', t: 'text', r: 1, half: 1 },
+      { k: 'institutionOriginal', l: 'Name of the university, college or training institution (original language)', t: 'text', half: 1 },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'city', l: 'City', t: 'text', half: 1 },
+      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
+      { k: 'certificate', l: 'Degree certificate / transcript', t: 'file' },
+    ] },
+    // School-leaving qualification ("Add Schooling"). Field list still to be confirmed against the reference form.
+    { key: 'schooling', title: 'Schooling', repeat: { min: 0, max: 5, item: 'Schooling', add: 'Add Schooling', none: 'Add your school-leaving qualification (high school).' }, fields: [
+      { k: 'institution', l: 'Name of the school', t: 'text', r: 1, half: 1 },
+      { k: 'institutionOriginal', l: 'Name of the school (original language)', t: 'text', half: 1 },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'city', l: 'City', t: 'text', half: 1 },
+      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'certificate', l: 'School-leaving certificate', t: 'file' },
+    ] },
+  ] },
   { key: 'employment', title: 'Work Experience', short: 'Experience', groups: [{ key: 'employment',
     repeat: { min: 0, max: 15, item: 'Employment', add: 'Add Employment', none: 'Add your jobs, starting with the most recent. If you have no work experience yet, just continue.' }, fields: [
       { k: 'employer', l: 'Employer Name', t: 'text', r: 1 },
@@ -88,6 +116,24 @@ export const STEPS = [
       { k: 'nextDate', l: 'Confirmed Date', t: 'date', r: 1, future: 1, if: booked, third: 1 },
     ] },
   ] },
+  { key: 'preferences', title: 'Job Preferences', short: 'Preferences', note: 'Where you see boxes, you can choose more than one option.', groups: [{ key: 'preferences', fields: [
+    { k: 'facilityTypes', l: 'Facility Type', t: 'multi', r: 1, o: FACILITIES, none: NP },
+    { k: 'facilityOther', l: 'Other Facility Type', t: 'text', r: 1, if: picked('facilityTypes', 'Other') },
+    { k: 'departments', l: 'Departments', t: 'multi', r: 1, o: DEPARTMENTS, none: NP },
+    { k: 'departmentOther', l: 'Other Department', t: 'text', r: 1, if: picked('departments', 'Other') },
+    { k: 'states', l: 'Preferred States', t: 'multi', r: 1, o: STATES, none: NP },
+    { k: 'region', l: 'Region', t: 'radio', r: 1, o: ['City', 'Rural', 'Both'] },
+    { k: 'salaryBefore', l: 'Salary Before Recognition', t: 'text', r: 1, ph: 'e.g. €2,800 gross per month', half: 1 },
+    { k: 'salaryAfter', l: 'Salary After Recognition', t: 'text', r: 1, ph: 'e.g. €3,400 gross per month', half: 1 },
+    { k: 'adjustmentMeasures', l: 'Adjustment Measure', t: 'multi', r: 1, o: [NP, 'Adaptation course', 'Preparatory course for knowledge examination'], none: NP },
+    { k: 'familyReunification', l: 'Family Reunification', t: 'radio', r: 1, o: ['Family reunification at job start', 'Family reunification after recognition', 'No family reunification (single, no children)', 'Other'] },
+    { k: 'familyOther', l: 'Please specify', t: 'text', r: 1, if: s => s.familyReunification === 'Other' },
+  ] }] },
+  { key: 'skills', title: 'Additional Skills & Knowledge', short: 'Skills', groups: [{ key: 'skills', fields: [
+    { k: 'drivingLicence', l: 'Do you have a driving licence?', t: 'radio', r: 1, o: YN },
+    { k: 'licenceClasses', l: 'Licence Class', t: 'multi', r: 1, o: ['A (Motorcycle)', 'B (Car)', 'C (Truck)', 'D (Bus)', 'Other'], if: s => s.drivingLicence === 'Yes' },
+    { k: 'itSkills', l: 'IT Skills', t: 'multi', o: ['MS Office', 'MCC', 'SAP', 'NetWeaver', 'OpenOffice'] },
+  ] }] },
   { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
     { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => d.personal?.passportStatus === 'Yes' },
     { k: 'photo', l: 'Profile Photo', t: 'file' },
@@ -116,8 +162,12 @@ const empty = v => v == null || v === false || (typeof v === 'string' && !v.trim
 const FILE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png)$/;
 
 function check(f, v, s, g, d, o) {
-  if (empty(v)) return required(f, s, d) ? (f.t === 'file' ? 'Please upload this document.' : f.o || f.t === 'tz' ? 'Please choose an option.' : 'This field is required.') : '';
+  if (empty(v)) return required(f, s, d) ? (f.t === 'file' ? 'Please upload this document.' : f.t === 'multi' ? 'Please choose at least one option.' : f.o || f.t === 'tz' ? 'Please choose an option.' : 'This field is required.') : '';
   if (f.t === 'check') return '';
+  if (f.t === 'multi') {
+    if (!Array.isArray(v) || new Set(v).size !== v.length || !v.every(x => f.o.includes(x))) return 'Please choose from the list.';
+    return f.none && v.includes(f.none) && v.length > 1 ? `"${f.none}" can't be combined with other choices.` : '';
+  }
   if (f.t === 'file') return Array.isArray(v) && v.length <= 10 && v.every(x => typeof x?.name === 'string' && FILE.test(x.path)) ? '' : 'Please upload this file again.';
   if (typeof v !== 'string') return 'Please check this answer.';
   if (v.length > (f.t === 'textarea' ? 2000 : 200)) return 'This answer is too long.';
@@ -165,7 +215,8 @@ export function normalize(raw) {
         const v = s[f.k];
         if (!visible(f, s, d) || empty(v)) continue;
         o[f.k] = f.t === 'file' ? (Array.isArray(v) ? v : []).map(x => ({ name: String(x?.name ?? '').slice(0, 200), path: String(x?.path ?? ''), type: String(x?.type ?? ''), size: +x?.size || 0 }))
-          : f.t === 'check' ? true : typeof v === 'string' ? v.trim() : v;
+          : f.t === 'check' ? true : f.t === 'multi' ? (Array.isArray(v) ? v.map(String) : [String(v)])
+          : typeof v === 'string' ? v.trim() : v;
       }
       return o;
     };
@@ -202,7 +253,7 @@ export function sections(raw) {
     const items = [];
     for (const g of st.groups) {
       if (g.title) items.push({ h: g.title });
-      const add = s => g.fields.forEach(f => f.t !== 'check' && s[f.k] !== undefined && items.push(f.t === 'file' ? { l: f.l, files: s[f.k] } : { l: f.l, v: s[f.k] }));
+      const add = s => g.fields.forEach(f => f.t !== 'check' && s[f.k] !== undefined && items.push(f.t === 'file' ? { l: f.l, files: s[f.k] } : { l: f.l, v: f.t === 'multi' ? s[f.k].join(', ') : s[f.k] }));
       if (!g.repeat) { add(d[g.key]); continue; }
       if (!d[g.key].length) items.push({ l: g.repeat.item, v: 'None' });
       d[g.key].forEach((e, j) => { items.push({ h: `${g.repeat.item} ${j + 1}` }); add(e); });

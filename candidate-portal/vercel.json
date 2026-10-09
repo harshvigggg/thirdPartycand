@@ -1,6 +1,8 @@
 {
+  "framework": null,
+  "outputDirectory": "public",
   "cleanUrls": true,
-  "redirects": [{ "source": "/", "destination": "/candidate-form", "permanent": false }],
+  "rewrites": [{ "source": "/candidate-form", "destination": "/" }],
   "headers": [
     {
       "source": "/(.*)",

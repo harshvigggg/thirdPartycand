@@ -2,6 +2,9 @@
   "name": "candidate-portal",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env dev.mjs"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"
   }

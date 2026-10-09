@@ -4,7 +4,7 @@ const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024, TYPES = ['applicatio
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
 const N = STEPS.length, app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-const uploading = {}, previews = {}, slotField = {};
+const uploading = {}, previews = {}, slotField = {}, multiField = {}, filters = {};
 const fresh = () => ({ data: {}, step: 0, seen: 0, session: crypto.randomUUID() });
 let st, D, dirty = false;
 
@@ -14,6 +14,11 @@ function load() {
 }
 function init(s) {
   st = s; D = st.data;
+  // Drafts saved before the Education split kept qualifications under `education`; carry them into `college`.
+  if (Array.isArray(D.education) && !D.college) {
+    D.college = D.education.map(e => ({ institution: e.institution, country: e.country, startDate: e.startDate, endDate: e.endDate, certificate: e.certificate }));
+    delete D.education;
+  }
   for (const x of STEPS) for (const g of x.groups) D[g.key] ??= g.repeat ? (g.repeat.min ? [{}] : []) : {};
   D.interview.timeZone ||= Intl.DateTimeFormat().resolvedOptions().timeZone || '';
   D.consent ??= {};
@@ -78,7 +83,13 @@ function field(f, s, base) {
   if (f.t === 'check') return `<label class="chk ${cls}"><input type="checkbox" data-p="${p}"${v ? ' checked' : ''}><span>${esc(f.l)}</span></label>`;
   if (f.t === 'file') { slotField[p] = f; return `<div class="${cls}" data-f="${p}"><div class="lbl">${esc(f.l)}${req}</div><div class="slot" data-slot="${p}">${slot(p)}</div><div class="err"></div></div>`; }
   let input;
-  if (f.t === 'radio') input = `<div class="opts" role="radiogroup" aria-labelledby="${id}-l">${f.o.map(o => `<label class="opt"><input type="radio" name="${id}" data-p="${p}" value="${esc(o)}"${v === o ? ' checked' : ''}><span>${esc(o)}</span></label>`).join('')}</div>`;
+  if (f.t === 'multi') {
+    const sel = Array.isArray(v) ? v : [], long = f.o.length > 12, q = (filters[p] || '').toLowerCase();
+    multiField[p] = f;
+    input = (long ? `<input type="search" data-filter="${p}" placeholder="Search ${esc(f.l.toLowerCase())}…" aria-label="Search ${esc(f.l)}" value="${esc(filters[p])}" style="margin-bottom:8px">` : '')
+      + `<div class="opts multi${long ? ' long' : ''}" role="group" aria-labelledby="${id}-l">${f.o.map(o => `<label class="opt"${q && !o.toLowerCase().includes(q) ? ' hidden' : ''}><input type="checkbox" data-p="${p}" data-m value="${esc(o)}"${sel.includes(o) ? ' checked' : ''}><span>${esc(o)}</span></label>`).join('')}</div>`
+      + (long && sel.length ? `<div class="picked">Selected: ${esc(sel.join(', '))}</div>` : '');
+  } else if (f.t === 'radio') input = `<div class="opts" role="radiogroup" aria-labelledby="${id}-l">${f.o.map(o => `<label class="opt"><input type="radio" name="${id}" data-p="${p}" value="${esc(o)}"${v === o ? ' checked' : ''}><span>${esc(o)}</span></label>`).join('')}</div>`;
   else if (f.o || f.t === 'tz') {
     const o = f.o || (!v || TIMEZONES.includes(v) ? TIMEZONES : [v, ...TIMEZONES]);
     input = `<select id="${id}" data-p="${p}"><option value="">Select…</option>${o.map(x => `<option${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
@@ -93,8 +104,8 @@ function field(f, s, base) {
       + (f.ph || f.t === 'month' ? ` placeholder="${esc(f.ph || 'YYYY-MM')}"` : '')
       + (f.past ? ` max="${today().slice(0, len)}"` : '') + (f.future ? ` min="${today().slice(0, len)}"` : '') + '>';
   }
-  const lab = f.t === 'radio' ? `<div class="lbl" id="${id}-l">${esc(f.l)}${req}</div>` : `<label class="lbl" for="${id}">${esc(f.l)}${req}</label>`;
-  return `<div class="${cls}" data-f="${p}">${lab}${input}<div class="err"></div></div>`;
+  const lab = f.t === 'radio' || f.t === 'multi' ? `<div class="lbl" id="${id}-l">${esc(f.l)}${req}</div>` : `<label class="lbl" for="${id}">${esc(f.l)}${req}</label>`;
+  return `<div class="${cls}" data-f="${p}">${lab}${input}${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}<div class="err"></div></div>`;
 }
 
 const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB';
@@ -200,6 +211,11 @@ async function upload(p, list) {
 
 app.addEventListener('input', e => {
   const t = e.target, p = t.dataset.p;
+  if (t.dataset.filter) {
+    const q = (filters[t.dataset.filter] = t.value).toLowerCase();
+    t.nextElementSibling.querySelectorAll('.opt').forEach(o => o.hidden = !o.textContent.toLowerCase().includes(q));
+    return;
+  }
   if (!p || t.type === 'radio' || t.type === 'checkbox' || t.tagName === 'SELECT') return;
   if (t.dataset.part) {
     const [c, n] = t.parentNode.querySelectorAll('input'), cd = c.value.replace(/\D/g, ''), nd = n.value.replace(/\D/g, '');
@@ -216,8 +232,17 @@ app.addEventListener('change', e => {
   if (t.dataset.up) return upload(t.dataset.up, [...t.files]);
   const p = t.dataset.p;
   if (!p || !(t.type === 'radio' || t.type === 'checkbox' || t.tagName === 'SELECT')) return;
-  set(p, t.type === 'checkbox' ? t.checked : t.value); save(); render();
-  app.querySelector(`[data-p="${p}"]${t.type === 'radio' ? `[value="${CSS.escape(t.value)}"]` : ''}`)?.focus();
+  const multi = t.dataset.m !== undefined, box = t.closest('.long'), top = box?.scrollTop;
+  if (multi) {
+    // "No preference" clears the other choices, and any other choice clears "No preference"
+    const f = multiField[p], cur = (get(p) || []).filter(x => x !== t.value);
+    const next = !t.checked ? cur : t.value === f.none ? [t.value] : [...cur.filter(x => x !== f.none), t.value];
+    set(p, next.sort((a, b) => f.o.indexOf(a) - f.o.indexOf(b)));
+  } else set(p, t.type === 'checkbox' ? t.checked : t.value);
+  save(); render();
+  const el = app.querySelector(`[data-p="${p}"]${t.type === 'radio' || multi ? `[value="${CSS.escape(t.value)}"]` : ''}`);
+  if (box) { const nb = el?.closest('.long'); if (nb) nb.scrollTop = top; }
+  el?.focus({ preventScroll: true });
 });
 
 app.addEventListener('click', e => {
