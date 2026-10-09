@@ -1,5 +1,5 @@
 // Single source of truth for the form: used by the candidate form, the review screen, the admin view and the API.
-import { DEGREES, HOME_QUALIFICATIONS } from './catalogs.js';
+import { DEGREES, HOME_QUALIFICATIONS, CAREER_BREAKS } from './catalogs.js';
 
 const names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' }) : null;
 const NON_COUNTRY = new Set(['AC', 'BV', 'CP', 'DG', 'EA', 'EU', 'EZ', 'HM', 'IC', 'QO', 'TA', 'UM', 'UN', 'XA', 'XB', 'ZZ']);
@@ -25,12 +25,13 @@ const STATES = [NP, 'Baden-Württemberg', 'Bavaria', 'Berlin', 'Brandenburg', 'B
 const OTHER_DEGREE = 'Other qualification', OTHER_QUALIFICATION = 'Other qualification';
 const ONGOING = 'If no date is entered, this experience is considered ongoing to date.';
 const picked = (k, x) => s => Array.isArray(s[k]) && s[k].includes(x);
-const hasPassport = s => s.passportStatus === 'Yes';
 const german = g => g.learning === 'Yes';
 const examTaken = g => german(g) && !!g.examStatus && g.examStatus !== 'Exam Not Taken';
 const booked = g => german(g) && g.nextBooked === 'Yes';
+const VOLUNTARY = 'Voluntary work';
 
-// Field keys: k key, l label, t type, r required (bool or fn), if visibility fn, o options, ph placeholder.
+// Field keys: k key, l label, t type, r required (bool or fn), if visibility fn, o options, ph placeholder, hint helper text.
+// Groups with `timeline: 1` render as a dated timeline; `order` sets which timeline block comes first.
 export const STEPS = [
   { key: 'personal', title: 'Personal Information', short: 'Personal', groups: [{ key: 'personal', fields: [
     { k: 'firstName', l: 'First Name', t: 'text', r: 1, name: 1, half: 1 },
@@ -42,22 +43,26 @@ export const STEPS = [
     { k: 'countryOfResidence', l: 'Country of Residence', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
     { k: 'currentCity', l: 'Current City', t: 'text', r: 1, half: 1 },
     { k: 'maritalStatus', l: 'Marital Status', t: 'select', o: ['Single', 'Married', 'Divorced', 'Widowed', 'Prefer not to say'], half: 1 },
-    { k: 'passportStatus', l: 'Do you have a valid passport?', t: 'radio', r: 1, o: YN },
-    { k: 'passportNumber', l: 'Passport Number', t: 'text', r: 1, if: hasPassport, pattern: /^[A-Za-z0-9]{6,12}$/, msg: 'Use 6–12 letters or numbers, without spaces.' },
-    { k: 'passportIssueDate', l: 'Passport Issue Date', t: 'date', r: 1, if: hasPassport, past: 1, half: 1 },
-    { k: 'passportExpiryDate', l: 'Passport Expiry Date', t: 'date', r: 1, if: hasPassport, future: 1, after: 'passportIssueDate', half: 1 },
+    { k: 'passportNumber', l: 'Passport Number', t: 'text', pattern: /^[A-Za-z0-9]{6,12}$/, msg: 'Use 6–12 letters or numbers, without spaces.', hint: 'Leave blank if you do not have a passport yet.', half: 1 },
   ] }] },
   { key: 'contact', title: 'Contact Information', short: 'Contact', groups: [{ key: 'contact', fields: [
-    { k: 'phone', l: 'Primary Mobile Number', t: 'phone', r: 1 },
-    { k: 'whatsappSame', l: 'My WhatsApp number is the same as my primary mobile', t: 'check' },
-    { k: 'whatsapp', l: 'WhatsApp Number', t: 'phone', r: 1, if: s => !s.whatsappSame },
+    { k: 'phone', l: 'Mobile Number', t: 'phone', r: 1, hint: 'We will use this number for calls and WhatsApp.' },
     { k: 'email', l: 'Email Address', t: 'email', r: 1 },
-    { k: 'altPhone', l: 'Alternate Mobile Number', t: 'phone' },
     { k: 'address', l: 'Current Address', t: 'textarea', r: 1 },
   ] }] },
-  { key: 'education', title: 'Education', short: 'Education', note: 'Please also add a school-leaving qualification in addition to your degree or vocational training so that the profile is 100% complete.', groups: [
+  { key: 'education', title: 'Education', short: 'Education', note: 'Start with your schooling, then add each college or training course in the order you did them. Please add every step so there are no gaps in your timeline.', groups: [
+    // School-leaving qualification ("Add Schooling"). Field list still to be confirmed against the reference form.
+    { key: 'schooling', title: '1. Schooling', timeline: 1, repeat: { min: 1, max: 5, item: 'School', add: 'Add Schooling', none: 'Add your school-leaving qualification (high school).' }, fields: [
+      { k: 'institution', l: 'Name of the school', t: 'text', r: 1, half: 1 },
+      { k: 'institutionOriginal', l: 'Name of the school (original language)', t: 'text', half: 1 },
+      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'city', l: 'City', t: 'text', half: 1 },
+      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'certificate', l: 'School-leaving certificate', t: 'file' },
+    ] },
     // Degree / vocational training ("Add College"). Labels and the two catalogs come from the reference system; see FORM_FIELD_MAP.md.
-    { key: 'college', title: 'College / Vocational Training', repeat: { min: 1, max: 10, item: 'College', add: 'Add College' }, fields: [
+    { key: 'college', title: '2. College / Vocational Training', timeline: 1, repeat: { min: 1, max: 10, item: 'College', add: 'Add College' }, fields: [
       { k: 'degree', l: 'Degree', t: 'select', r: 1, o: DEGREES },
       { k: 'degreeOther', l: 'Other degree', t: 'text', r: 1, if: e => e.degree === OTHER_DEGREE },
       { k: 'homeQualification', l: 'Name of the Qualification in the Home Country', t: 'select', o: HOME_QUALIFICATIONS },
@@ -71,19 +76,9 @@ export const STEPS = [
       { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
       { k: 'certificate', l: 'Degree certificate / transcript', t: 'file' },
     ] },
-    // School-leaving qualification ("Add Schooling"). Field list still to be confirmed against the reference form.
-    { key: 'schooling', title: 'Schooling', repeat: { min: 0, max: 5, item: 'Schooling', add: 'Add Schooling', none: 'Add your school-leaving qualification (high school).' }, fields: [
-      { k: 'institution', l: 'Name of the school', t: 'text', r: 1, half: 1 },
-      { k: 'institutionOriginal', l: 'Name of the school (original language)', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-      { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
-      { k: 'certificate', l: 'School-leaving certificate', t: 'file' },
-    ] },
   ] },
-  { key: 'employment', title: 'Work Experience', short: 'Experience', groups: [{ key: 'employment',
-    repeat: { min: 0, max: 15, item: 'Employment', add: 'Add Employment', none: 'Add your jobs, starting with the most recent. If you have no work experience yet, just continue.' }, fields: [
+  { key: 'employment', title: 'Work Experience', short: 'Experience', note: 'Add every job from your first to your current one. If there was a time when you were not working, add it as a career break so your timeline has no gaps.', groups: [
+    { key: 'employment', title: '1. Jobs', timeline: 1, repeat: { min: 0, max: 15, item: 'Job', add: 'Add Job', none: 'Add your jobs, starting with the first one. If you have no work experience yet, just continue.' }, fields: [
       { k: 'employer', l: 'Employer Name', t: 'text', r: 1 },
       { k: 'jobTitle', l: 'Job Title', t: 'text', r: 1, half: 1 },
       { k: 'department', l: 'Department', t: 'text', half: 1 },
@@ -94,14 +89,19 @@ export const STEPS = [
       { k: 'endDate', l: 'End Date', t: 'month', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
       { k: 'responsibilities', l: 'Main Responsibilities', t: 'textarea', r: 1 },
       { k: 'certificate', l: 'Experience Certificate', t: 'file' },
-    ] }] },
+    ] },
+    // Career breaks: the type list comes from the reference system's catalog.
+    { key: 'breaks', title: '2. Career Breaks', timeline: 1, repeat: { min: 0, max: 10, item: 'Career break', add: 'Add Career Break', none: 'Only needed if there was a time between studies and jobs when you were not working or studying.' }, fields: [
+      { k: 'type', l: 'Type of career break', t: 'select', r: 1, o: CAREER_BREAKS },
+      { k: 'purpose', l: 'Social or voluntary purpose', t: 'text', r: 1, if: e => e.type === VOLUNTARY },
+      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'month', past: 1, after: 'startDate', half: 1, hint: ONGOING },
+    ] },
+  ] },
   { key: 'language', title: 'Language Details', short: 'Language', groups: [
     { key: 'languages', repeat: { min: 1, max: 10, item: 'Language', add: 'Add Language' }, fields: [
-      { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English' },
-      { k: 'speaking', l: 'Speaking', t: 'select', r: 1, o: SKILL, third: 1 },
-      { k: 'reading', l: 'Reading', t: 'select', r: 1, o: SKILL, third: 1 },
-      { k: 'writing', l: 'Writing', t: 'select', r: 1, o: SKILL, third: 1 },
-      { k: 'certificate', l: 'Certificate', t: 'file' },
+      { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English', half: 1 },
+      { k: 'fluency', l: 'Fluency', t: 'select', r: 1, o: SKILL, half: 1 },
     ] },
     { key: 'german', title: 'German Language', fields: [
       { k: 'learning', l: 'Have you learned German or taken a German exam?', t: 'radio', r: 1, o: YN },
@@ -110,7 +110,7 @@ export const STEPS = [
       { k: 'examProvider', l: 'Exam Provider', t: 'select', r: 1, o: PROVIDERS, if: examTaken, half: 1 },
       { k: 'examDate', l: 'Exam Date', t: 'date', r: 1, past: 1, if: examTaken, half: 1 },
       { k: 'certificate', l: 'German Exam Certificate / Result', t: 'file', if: examTaken },
-      { k: 'nextBooked', l: 'Have you booked your next exam?', t: 'radio', r: 1, o: YN, if: german },
+      { k: 'nextBooked', l: 'Have you booked your next exam?', t: 'radio', o: YN, if: german, hint: 'Optional' },
       { k: 'nextLevel', l: 'Exam Level', t: 'select', r: 1, o: CEFR, if: booked, third: 1 },
       { k: 'nextProvider', l: 'Provider', t: 'select', r: 1, o: PROVIDERS, if: booked, third: 1 },
       { k: 'nextDate', l: 'Confirmed Date', t: 'date', r: 1, future: 1, if: booked, third: 1 },
@@ -130,28 +130,19 @@ export const STEPS = [
     { k: 'familyOther', l: 'Please specify', t: 'text', r: 1, if: s => s.familyReunification === 'Other' },
   ] }] },
   { key: 'skills', title: 'Additional Skills & Knowledge', short: 'Skills', groups: [{ key: 'skills', fields: [
-    { k: 'drivingLicence', l: 'Do you have a driving licence?', t: 'radio', r: 1, o: YN },
-    { k: 'licenceClasses', l: 'Licence Class', t: 'multi', r: 1, o: ['A (Motorcycle)', 'B (Car)', 'C (Truck)', 'D (Bus)', 'Other'], if: s => s.drivingLicence === 'Yes' },
+    { k: 'drivingLicence', l: 'Do you have a driving licence for a car (four-wheeler)?', t: 'radio', r: 1, o: YN },
     { k: 'itSkills', l: 'IT Skills', t: 'multi', o: ['MS Office', 'MCC', 'SAP', 'NetWeaver', 'OpenOffice'] },
   ] }] },
   { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
-    { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => d.personal?.passportStatus === 'Yes' },
-    { k: 'photo', l: 'Profile Photo', t: 'file' },
     { k: 'cv', l: 'CV / Resume', t: 'file', r: 1 },
+    { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => !!d.personal?.passportNumber },
+    { k: 'photo', l: 'Profile Photo', t: 'file' },
     { k: 'degree', l: 'Degree Certificate', t: 'file' },
     { k: 'marksheets', l: 'Academic Marksheets', t: 'file', multi: 1 },
     { k: 'registration', l: 'Professional Registration', t: 'file' },
     { k: 'languageCertificate', l: 'Language Certificate', t: 'file', multi: 1 },
     { k: 'employmentCertificate', l: 'Employment Certificate', t: 'file', multi: 1 },
     { k: 'other', l: 'Other Supporting Documents', t: 'file', multi: 1 },
-  ] }] },
-  { key: 'interview', title: 'Interview Availability', short: 'Interview', groups: [{ key: 'interview', fields: [
-    { k: 'preferredDate', l: 'Preferred Interview Date', t: 'date', r: 1, future: 1, half: 1 },
-    { k: 'timeSlot', l: 'Preferred Time Slot', t: 'select', r: 1, o: ['Morning (9 AM – 12 PM)', 'Afternoon (12 PM – 4 PM)', 'Evening (4 PM – 8 PM)'], half: 1 },
-    { k: 'timeZone', l: 'Your Time Zone', t: 'tz', r: 1 },
-    { k: 'shortNotice', l: 'Are you available on short notice?', t: 'radio', o: YN },
-    { k: 'video', l: 'Are you available for a video interview?', t: 'radio', r: 1, o: YN },
-    { k: 'notes', l: 'Notes', t: 'textarea', ph: 'Anything we should know about your availability' },
   ] }] },
 ];
 
@@ -222,7 +213,6 @@ export function normalize(raw) {
     };
     out[g.key] = g.repeat ? (Array.isArray(d[g.key]) ? d[g.key].slice(0, 50) : []).map(s => pick(obj(s))) : pick(obj(d[g.key]));
   }
-  if (out.contact.whatsappSame) out.contact.whatsapp = out.contact.phone;
   out.consent = { accurate: !!d.consent?.accurate, processing: !!d.consent?.processing };
   return out;
 }
@@ -246,6 +236,27 @@ export function experience(list = []) {
 }
 export const months = m => `${m / 12 | 0} Years ${m % 12} Months`;
 
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const fmtMonth = s => /^\d{4}-\d{2}$/.test(s || '') ? `${MON[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '';
+export const spanLabel = e => {
+  const a = fmtMonth(e.startDate), b = e.current === 'Yes' ? 'Present' : fmtMonth(e.endDate) || (a ? 'Present' : '');
+  const m = ym(e.startDate) != null ? (e.current === 'Yes' || !ym(e.endDate) ? ym(today().slice(0, 7)) : ym(e.endDate)) - ym(e.startDate) + 1 : 0;
+  const dur = m > 0 ? [m >= 12 && `${m / 12 | 0} yr`, m % 12 && `${m % 12} mo`].filter(Boolean).join(' ') : '';
+  return a ? `${a} – ${b}${dur ? ` · ${dur}` : ''}` : '';
+};
+// Months with no dated entry between the entries of the given groups (all entries of a step share one timeline).
+export function gaps(lists) {
+  const iv = lists.flat().map(e => [ym(e.startDate), e.current === 'Yes' || !e.endDate ? ym(today().slice(0, 7)) : ym(e.endDate)])
+    .filter(([a, b]) => a != null && b != null && b >= a).sort((x, y) => x[0] - y[0]);
+  const out = []; let end = null;
+  for (const [a, b] of iv) {
+    if (end != null && a - end > 1) out.push([end + 1, a - 1]); // any full month without an entry counts as a gap
+    end = end == null ? b : Math.max(end, b);
+  }
+  const f = n => `${MON[n % 12]} ${n / 12 | 0}`;
+  return out.map(([a, b]) => `${f(a)} – ${f(b)}`);
+}
+
 // Display-ready rows per step, used by the review screen and the admin view.
 export function sections(raw) {
   const d = normalize(raw);
@@ -262,4 +273,15 @@ export function sections(raw) {
     }
     return { i, title: st.title, items };
   });
+}
+
+// Gap report for the admin view and the candidate file: per timeline and across everything the candidate entered.
+export function timelineGaps(raw) {
+  const d = normalize(raw);
+  const edu = [d.schooling, d.college], work = [d.employment, d.breaks];
+  return [
+    { title: 'Education timeline (schooling → college)', gaps: gaps(edu) },
+    { title: 'Work timeline (jobs → career breaks)', gaps: gaps(work) },
+    { title: 'Overall timeline (education + work + breaks, up to today)', gaps: gaps([...edu, ...work]) },
+  ];
 }

@@ -42,5 +42,25 @@ Institution + Country + Start date required; End date optional ≥ start; other 
 - Schooling field list (currently generic).
 - The reference also stores "Recognition Eligibility in the Home Country" — assumed staff-only, not collected.
 
-## Employment / Career break / Personal — to be filled in as each section is updated.
+## Schooling (`schooling[]`) — at least 1, up to 5
+Institution, Country, Start date required; End date optional ≥ start (blank = ongoing).
+
+## Work Experience
+### Jobs (`employment[]`) — optional, up to 15
+Employer, Job Title, Country, "Currently working here?", Start date, Main Responsibilities required; End date required unless current; dates not in the future, end ≥ start.
+### Career breaks (`breaks[]`) — optional, up to 10
+Type (catalog) and Start date required; *Social or voluntary purpose* required only when Type = "Voluntary work"; End date optional ≥ start.
+### Timeline gaps (soft check)
+`gaps()` merges every dated entry on the step (schooling + college, or jobs + breaks) and lists every full month with no entry (a single empty month counts). It is a warning, not a blocker — the candidate can still continue.
+
+## Personal / Contact / Languages / Skills (simplified)
+- Passport Number optional; when given it must be 6–12 letters/digits and the passport upload becomes required.
+- One mobile number (`+<code> <6–14 digits>`), email, address required.
+- Each language: name + fluency required. German: "next exam booked" optional; follow-up fields required only when "Yes".
+- Driving licence: yes/no required.
+
+## CV pre-fill
+Values from the CV are written only into empty fields and then validated exactly like typed input, so a wrong extraction is caught by the same rules. Lists (schooling, college, jobs, languages) are filled only when the candidate has not typed any entry yet.
+
+## Employment / Personal reference dropdowns — pending screenshots.
 Reference conditional hints already known: "Conditions treated" and "Equipment used" are *required for intensive care, N-ICU, K-ICU, operating theatre*; "Number of beds" is *required for facility types with inpatient care*; blank end date = ongoing.

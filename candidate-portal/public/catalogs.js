@@ -129,3 +129,6 @@ export const HOME_QUALIFICATIONS = [
   "大专 Dazhuan – after upper secondary school (3 years)",
   "本科 Bachelor in Nursing (3 years)"
 ];
+
+// Type of career break (catalog `berufliche_auszeit_typ`).
+export const CAREER_BREAKS = ["Other professional experience", "Job seeking", "Looking for a training place", "Caregiving", "Learning German", "Voluntary work", "Parental leave", "Integration course", "Illness", "Military service", "Exam preparation", "Relocation", "Bereavement"];

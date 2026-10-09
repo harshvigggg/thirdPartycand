@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const PORT = process.env.PORT || 3000, PUB = path.resolve('public');
-const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json' };
+const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', png: 'image/png', svg: 'image/svg+xml' };
 const PAGES = { '/': 'index.html', '/candidate-form': 'index.html', '/admin': 'admin.html' };
 
 http.createServer(async (req, res) => {

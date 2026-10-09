@@ -19,6 +19,7 @@ A mobile-first, multi-step candidate form with document uploads, a review screen
    | `SUPABASE_URL` | Project URL from step 2 |
    | `SUPABASE_SERVICE_ROLE_KEY` | secret key from step 2 |
    | `ADMIN_KEY` | any long random password (12+ characters) for the internal view |
+   | `ANTHROPIC_API_KEY` | Claude API key — used only to read the uploaded CV and pre-fill the form (optional; without it the form still works, the CV is just not read) |
 
 4. Deploy. Share `/candidate-form` with candidates.
 

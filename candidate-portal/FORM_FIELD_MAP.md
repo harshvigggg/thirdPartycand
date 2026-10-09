@@ -14,10 +14,10 @@ Status: ✅ implemented & verified · 🟡 implemented, layout/required status u
 | # | Section | Status |
 |---|---------|--------|
 | 1 | Education — Add College / Add Schooling | 🟡 done, awaiting screenshots |
-| 2 | Employment / Work Experience | ⛔ next |
-| 3 | Career Breaks and Gaps | ⛔ |
-| 4 | Personal Information | ⛔ |
-| 5 | Remaining sections (Contact, Languages, German, Preferences, Skills, Documents, Interview) | ⛔ |
+| 2 | Employment / Work Experience | 🟡 timeline UX done; reference dropdowns (Position, Department, Employment relationship, Tasks) not yet adopted — awaiting screenshots |
+| 3 | Career Breaks and Gaps | 🟡 implemented with verified type catalog; automatic gap detection across schooling/college/jobs/breaks |
+| 4 | Personal Information | 🟡 simplified per Skillbee request (passport number only) |
+| 5 | Remaining sections | 🟡 Contact (one phone), Languages (single fluency), Skills (car licence yes/no); Interview section removed |
 
 ## Education
 
@@ -92,3 +92,19 @@ Other experience types in the reference (`type` catalog), not yet mapped: Furthe
 ## Personal Information — reference labels found (⛔ audit pending)
 
 First name, Last name, Birth Name, Date of birth, Gender (`geschlecht`: Non-binary / Male / …), Nationality (`citizenship__new_`, 196), Country of birth, Place of birth, Marital status (`marital_status_new`, 7), Children (`children`, 6), Passport Number, Street and House Number / ZIP Code / City (Home Country), Street and House Number / ZIP Code / City (Germany), Phone, Whatsapp, Email, Current location (`current_location`, 195), City (home country).
+
+
+## Skillbee product decisions (2026-10-09)
+
+These deliberately diverge from the reference form and override earlier rows:
+
+- **CV first:** the intro screen asks for the CV (optional, recommended). `api/parse-resume.js` reads it with Claude and pre-fills empty fields only; the same file is the required *CV / Resume* document.
+- **Timeline UX:** Education = Schooling → College; Work = Jobs → Career Breaks. Entries show their date span and duration; any full month with no dated entry on the step shows a warning asking the candidate to fill it.
+- **Personal:** only *Passport Number* (optional); issue/expiry dates and the yes/no question removed. Passport upload is required only when a number is given.
+- **Contact:** one mobile number (used for WhatsApp too); alternate and WhatsApp numbers removed.
+- **Languages:** one *Fluency* level per language (Native / Fluent / Advanced / Intermediate / Basic); per-language certificate removed.
+- **German:** "Have you booked your next exam?" is optional.
+- **Skills:** driving licence is a single yes/no for a car (four-wheeler); licence classes removed.
+- **Interview Availability:** section removed.
+- **Career breaks:** `breaks[]` with the verified 13-type catalog; *Social or voluntary purpose* shown for "Voluntary work" (placement of that conditional is inferred — confirm).
+- **Admin candidate file:** opening a submission shows a *Timeline gaps* card (education, work, overall) and a **Download Candidate File** button producing `CAND-XXXX.txt` with every answer plus the gap list; *Copy Full Candidate Data* includes the same gap section.

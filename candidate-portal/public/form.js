@@ -1,4 +1,4 @@
-import { STEPS, COUNTRIES, TIMEZONES, validate, sections, visible, required, experience, months, today } from './schema.js';
+import { STEPS, COUNTRIES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
 
 const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024, TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
@@ -19,8 +19,9 @@ function init(s) {
     D.college = D.education.map(e => ({ institution: e.institution, country: e.country, startDate: e.startDate, endDate: e.endDate, certificate: e.certificate }));
     delete D.education;
   }
+  // Older drafts stored speaking/reading/writing separately; keep the speaking level as fluency.
+  for (const l of D.languages || []) if (l && !l.fluency && l.speaking) l.fluency = l.speaking;
   for (const x of STEPS) for (const g of x.groups) D[g.key] ??= g.repeat ? (g.repeat.min ? [{}] : []) : {};
-  D.interview.timeZone ||= Intl.DateTimeFormat().resolvedOptions().timeZone || '';
   D.consent ??= {};
 }
 function save() {
@@ -51,14 +52,23 @@ function stepper(cur) {
 <div class="prog"><span>${cur >= N ? 'Review' : `Step ${cur + 1} of ${N}`}</span><span>${pct}% Complete</span></div>`;
 }
 
-const intro = () => `<section class="card intro">
+const CV = 'documents.cv';
+function intro() {
+  slotField[CV] = STEPS.find(x => x.key === 'documents').groups[0].fields.find(f => f.k === 'cv');
+  const has = (get(CV) || []).length;
+  return `<section class="card intro">
 <h2>Welcome</h2>
-<p>This form collects the details needed to schedule your interview. It takes about 15–20 minutes.</p>
+<p>This form collects the details we need for your application. It takes about 15 minutes.</p>
 <p>Your answers are saved automatically on this device, so you can come back later and continue.</p>
+<h3>Start with your CV <span class="tag">Recommended</span></h3>
+<p class="note">Upload your CV and we will fill in as much of the form as we can for you. You can check and change everything afterwards.</p>
+<div data-f="${CV}"><div class="slot" data-slot="${CV}">${slot(CV)}</div><div class="err"></div></div>
+<p class="note" id="cv-status">${has ? (st.parsed ? 'We filled in details from your CV. Please check each step.' : '') : 'No CV yet? You can also skip this and type everything yourself.'}</p>
 <h3>Please keep these ready</h3>
-<ul><li>Passport</li><li>CV / Resume</li><li>Education certificates and marksheets</li><li>Language certificates, if any</li><li>Experience certificates, if any</li></ul>
+<ul><li>Passport</li><li>Education certificates</li><li>Language certificates, if any</li><li>Experience certificates, if any</li></ul>
 <p class="note">Files can be PDF, JPG or PNG, up to 10 MB each.</p>
-</section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">Start</button></div>`;
+</section><div class="nav"><button type="button" class="btn primary" data-act="go" data-s="1">${has ? 'Continue' : 'Start'}</button></div>`;
+}
 
 function stepView(x) {
   let h = stepper(st.step - 1) + `<section class="card"><h2>${x.title}</h2>${x.note ? `<p class="note">${x.note}</p>` : ''}`;
@@ -67,12 +77,33 @@ function stepView(x) {
     if (!g.repeat) { h += grid(g, D[g.key], g.key); continue; }
     const a = D[g.key], r = g.repeat;
     if (!a.length && r.none) h += `<p class="note">${r.none}</p>`;
-    a.forEach((e, i) => h += `<div class="entry"><div class="entry-h"><b>${r.item} ${i + 1}</b>${a.length > r.min ? `<button type="button" class="link" data-act="rm" data-g="${g.key}" data-i="${i}">Delete</button>` : ''}</div>${grid(g, e, `${g.key}.${i}`)}</div>`);
+    if (g.timeline) h += '<div class="tl">';
+    a.forEach((e, i) => {
+      const span = g.timeline ? spanLabel(e) : '';
+      h += `<div class="entry"><div class="entry-h"><b>${r.item} ${i + 1}${span ? `<small>${esc(span)}</small>` : ''}</b>${a.length > r.min ? `<button type="button" class="link" data-act="rm" data-g="${g.key}" data-i="${i}">Delete</button>` : ''}</div>${grid(g, e, `${g.key}.${i}`)}</div>`;
+    });
+    if (g.timeline) h += '</div>';
     h += `<div data-f="${g.key}"><div class="err"></div></div>`;
     if (a.length < r.max) h += `<button type="button" class="add" data-act="add" data-g="${g.key}">+ ${r.add}</button>`;
     if (g.key === 'employment') h += '<p class="total" id="total"></p>';
   }
+  const tl = x.groups.filter(g => g.timeline);
+  if (tl.length) {
+    const miss = gaps(tl.map(g => D[g.key]));
+    h += `<div class="gap" id="gaps"${miss.length ? '' : ' hidden'}>${gapText(miss)}</div>`;
+  }
   return h + `</section><div class="nav"><button type="button" class="btn" data-act="go" data-s="${st.step - 1}">Back</button><button type="button" class="btn primary" data-act="next">${st.ret ? 'Save &amp; Return to Review' : 'Save &amp; Continue'}</button></div>`;
+}
+const gapText = miss => miss.length ? `<b>Your timeline has a gap:</b> ${esc(miss.join('; '))}. Please add what you did during this time (for example a job, a course or a career break) so nothing is missing.` : '';
+function paintGaps() {
+  const el = document.getElementById('gaps'); if (!el) return;
+  const tl = STEPS[st.step - 1].groups.filter(g => g.timeline), miss = gaps(tl.map(g => D[g.key]));
+  el.innerHTML = gapText(miss); el.hidden = !miss.length;
+  app.querySelectorAll('.tl .entry').forEach(en => {
+    const [g, i] = en.querySelector('[data-p]')?.dataset.p.split('.') || [];
+    const small = en.querySelector('.entry-h small'), span = g && D[g]?.[i] ? spanLabel(D[g][i]) : '';
+    if (small) small.textContent = span; else if (span) en.querySelector('.entry-h b').insertAdjacentHTML('beforeend', `<small>${esc(span)}</small>`);
+  });
 }
 const grid = (g, s, base) => `<div class="grid">${g.fields.map(f => field(f, s, base)).join('')}</div>`;
 
@@ -202,9 +233,43 @@ async function upload(p, list) {
       previews[j.path] = URL.createObjectURL(file);
       const item = { name: file.name.slice(0, 200), path: j.path, type: file.type, size: file.size };
       set(p, f.multi ? [...(get(p) || []), item] : [item]); save();
+      if (p === CV && st.step === 0) parseResume(item.path);
     } catch (e) { fileErr(p, e.message || 'Upload failed. Please try again.'); }
     uploading[p] = uploading[p].filter(x => x !== u); paintSlot(p);
   }
+}
+
+// Asks the server to read the CV and fills in answers the candidate has not typed yet.
+async function parseResume(path) {
+  const status = () => document.getElementById('cv-status');
+  if (status()) status().textContent = 'Reading your CV… this takes about 20 seconds.';
+  try {
+    const r = await fetch('/api/parse-resume', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: st.session, path }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'We could not read the CV.');
+    const n = applyResume(j.data || {});
+    st.parsed = 1; save(); render();
+    toast(n ? `We filled in ${n} answer${n === 1 ? '' : 's'} from your CV. Please check them as you go.` : 'We could not find details to fill in from this CV. Please type them in.');
+  } catch (e) {
+    if (status()) status().textContent = 'We could not read details from this CV, but it is saved. Please type your answers.';
+  }
+}
+const filled = v => v != null && v !== '' && !(Array.isArray(v) && !v.length);
+// Merges extracted answers into the draft without overwriting anything already typed. Returns how many answers were filled.
+function applyResume(x) {
+  let n = 0;
+  for (const stp of STEPS) for (const g of stp.groups) {
+    const src = x[g.key]; if (!src) continue;
+    const keys = new Set(g.fields.filter(f => f.t !== 'file').map(f => f.k));
+    const fill = (dst, s) => { for (const k of keys) if (filled(s?.[k]) && !filled(dst[k])) { dst[k] = s[k]; n++; } };
+    if (!g.repeat) { fill(D[g.key], src); continue; }
+    if (!Array.isArray(src)) continue;
+    const typed = D[g.key].some(e => Object.values(e).some(filled));
+    if (typed) continue;
+    D[g.key] = src.slice(0, g.repeat.max).map(e => { const o = {}; fill(o, e); return o; }).filter(o => Object.keys(o).length);
+    if (!D[g.key].length && g.repeat.min) D[g.key] = [{}];
+  }
+  return n;
 }
 
 /* ---------- events ---------- */
@@ -224,6 +289,7 @@ app.addEventListener('input', e => {
     set(p, nd ? `+${cd} ${nd}` : '');
   } else set(p, t.value);
   if (p.startsWith('employment.')) paintTotal();
+  if (p.endsWith('Date')) paintGaps();
   if (st.show) showErrors(errors());
 });
 
