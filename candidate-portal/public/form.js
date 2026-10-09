@@ -21,6 +21,9 @@ function init(s) {
   }
   // Older drafts stored speaking/reading/writing separately; keep the speaking level as fluency.
   for (const l of D.languages || []) if (l && !l.fluency && l.speaking) l.fluency = l.speaking;
+  // Start/end dates used to be month-only; give them a day so the date inputs accept them.
+  for (const x of STEPS) for (const g of x.groups) for (const e of g.repeat ? D[g.key] || [] : [D[g.key] || {}])
+    for (const f of g.fields) if (f.t === 'date' && /^\d{4}-\d{2}$/.test(e?.[f.k] || '')) e[f.k] += '-01';
   for (const x of STEPS) for (const g of x.groups) D[g.key] ??= g.repeat ? (g.repeat.min ? [{}] : []) : {};
   D.consent ??= {};
 }
@@ -48,7 +51,7 @@ function render() {
 
 function stepper(cur) {
   const pct = cur >= N ? 100 : Math.round((cur + 1) / N * 100);
-  return `<ol class="stepper">${STEPS.map((x, i) => `<li class="${i < cur ? 'done' : i === cur ? 'cur' : ''}"><button type="button" data-act="go" data-s="${i + 1}"${i + 1 > st.seen ? ' disabled' : ''} aria-label="Step ${i + 1}: ${x.short}"><i></i><span>${i + 1} ${x.short}</span></button></li>`).join('')}</ol>
+  return `<ol class="stepper">${STEPS.map((x, i) => `<li class="${i < cur ? 'past' : i === cur ? 'cur' : ''}"><button type="button" data-act="go" data-s="${i + 1}"${i + 1 > st.seen ? ' disabled' : ''} aria-label="Step ${i + 1}: ${x.short}${i < cur ? ' (completed)' : ''}"><i>${i < cur ? '✓' : ''}</i><span>${x.short}</span></button></li>`).join('')}</ol>
 <div class="prog"><span>${cur >= N ? 'Review' : `Step ${cur + 1} of ${N}`}</span><span>${pct}% Complete</span></div>`;
 }
 

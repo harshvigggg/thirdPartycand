@@ -29,6 +29,7 @@ const german = g => g.learning === 'Yes';
 const examTaken = g => german(g) && !!g.examStatus && g.examStatus !== 'Exam Not Taken';
 const booked = g => german(g) && g.nextBooked === 'Yes';
 const VOLUNTARY = 'Voluntary work';
+const isGerman = l => /^\s*(german|deutsch)\s*$/i.test(l.name || '');
 
 // Field keys: k key, l label, t type, r required (bool or fn), if visibility fn, o options, ph placeholder, hint helper text.
 // Groups with `timeline: 1` render as a dated timeline; `order` sets which timeline block comes first.
@@ -57,8 +58,8 @@ export const STEPS = [
       { k: 'institutionOriginal', l: 'Name of the school (original language)', t: 'text', half: 1 },
       { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'startDate', l: 'Start date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
       { k: 'certificate', l: 'School-leaving certificate', t: 'file' },
     ] },
     // Degree / vocational training ("Add College"). Labels and the two catalogs come from the reference system; see FORM_FIELD_MAP.md.
@@ -71,8 +72,8 @@ export const STEPS = [
       { k: 'institutionOriginal', l: 'Name of the university, college or training institution (original language)', t: 'text', half: 1 },
       { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'month', after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'startDate', l: 'Start date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
       { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
       { k: 'certificate', l: 'Degree certificate / transcript', t: 'file' },
     ] },
@@ -85,8 +86,8 @@ export const STEPS = [
       { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
       { k: 'city', l: 'City', t: 'text', half: 1 },
       { k: 'current', l: 'Currently working here?', t: 'radio', r: 1, o: YN },
-      { k: 'startDate', l: 'Start Date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End Date', t: 'month', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
+      { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End Date', t: 'date', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
       { k: 'responsibilities', l: 'Main Responsibilities', t: 'textarea', r: 1 },
       { k: 'certificate', l: 'Experience Certificate', t: 'file' },
     ] },
@@ -94,14 +95,15 @@ export const STEPS = [
     { key: 'breaks', title: '2. Career Breaks', timeline: 1, repeat: { min: 0, max: 10, item: 'Career break', add: 'Add Career Break', none: 'Only needed if there was a time between studies and jobs when you were not working or studying.' }, fields: [
       { k: 'type', l: 'Type of career break', t: 'select', r: 1, o: CAREER_BREAKS },
       { k: 'purpose', l: 'Social or voluntary purpose', t: 'text', r: 1, if: e => e.type === VOLUNTARY },
-      { k: 'startDate', l: 'Start date', t: 'month', r: 1, past: 1, half: 1 },
-      { k: 'endDate', l: 'End date', t: 'month', past: 1, after: 'startDate', half: 1, hint: ONGOING },
+      { k: 'startDate', l: 'Start date', t: 'date', r: 1, past: 1, half: 1 },
+      { k: 'endDate', l: 'End date', t: 'date', past: 1, after: 'startDate', half: 1, hint: ONGOING },
     ] },
   ] },
   { key: 'language', title: 'Language Details', short: 'Language', groups: [
     { key: 'languages', repeat: { min: 1, max: 10, item: 'Language', add: 'Add Language' }, fields: [
       { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English', half: 1 },
-      { k: 'fluency', l: 'Fluency', t: 'select', r: 1, o: SKILL, half: 1 },
+      { k: 'fluency', l: 'Fluency', t: 'select', r: 1, o: SKILL, half: 1, if: l => !isGerman(l) },
+      { k: 'cefr', l: 'Fluency', t: 'select', r: 1, o: CEFR, half: 1, if: isGerman, hint: 'German is rated on the A1–C2 scale.' },
     ] },
     { key: 'german', title: 'German Language', fields: [
       { k: 'learning', l: 'Have you learned German or taken a German exam?', t: 'radio', r: 1, o: YN },
@@ -236,7 +238,7 @@ export function filePaths(d) {
   return out;
 }
 
-const ym = s => /^\d{4}-\d{2}$/.test(s || '') ? +s.slice(0, 4) * 12 + +s.slice(5, 7) - 1 : null;
+const ym = s => /^\d{4}-\d{2}/.test(s || '') ? +s.slice(0, 4) * 12 + +s.slice(5, 7) - 1 : null;
 // Total months of work, counting overlapping jobs once.
 export function experience(list = []) {
   const now = ym(today().slice(0, 7));
@@ -249,7 +251,10 @@ export function experience(list = []) {
 export const months = m => `${m / 12 | 0} Years ${m % 12} Months`;
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const fmtMonth = s => /^\d{4}-\d{2}$/.test(s || '') ? `${MON[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '';
+export const fmtMonth = s => /^\d{4}-\d{2}/.test(s || '') ? `${MON[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '';
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// "14 March 2017" for display; anything that is not a full date is returned unchanged.
+export const fmtDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? `${+s.slice(8, 10)} ${MONTH[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : (s || '');
 export const spanLabel = e => {
   const a = fmtMonth(e.startDate), b = e.current === 'Yes' ? 'Present' : fmtMonth(e.endDate) || (a ? 'Present' : '');
   const m = ym(e.startDate) != null ? (e.current === 'Yes' || !ym(e.endDate) ? ym(today().slice(0, 7)) : ym(e.endDate)) - ym(e.startDate) + 1 : 0;
@@ -276,7 +281,7 @@ export function sections(raw) {
     const items = [];
     for (const g of st.groups) {
       if (g.title) items.push({ h: g.title });
-      const add = s => g.fields.forEach(f => f.t !== 'check' && s[f.k] !== undefined && items.push(f.t === 'file' ? { l: f.l, files: s[f.k] } : { l: f.l, v: f.t === 'multi' ? s[f.k].join(', ') : s[f.k] }));
+      const add = s => g.fields.forEach(f => f.t !== 'check' && s[f.k] !== undefined && items.push(f.t === 'file' ? { l: f.l, files: s[f.k] } : { l: f.l, v: f.t === 'multi' ? s[f.k].join(', ') : f.t === 'date' ? fmtDate(s[f.k]) : s[f.k] }));
       if (!g.repeat) { add(d[g.key]); continue; }
       if (!d[g.key].length) items.push({ l: g.repeat.item, v: 'None' });
       d[g.key].forEach((e, j) => { items.push({ h: `${g.repeat.item} ${j + 1}` }); add(e); });

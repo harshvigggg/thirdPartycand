@@ -37,7 +37,7 @@ Reference entry types (from the `type` catalog): `Ausbildung` → "Vocational tr
 | Name of the university, college or training institution (original language) | `institutionOriginal` | text | – | 🟡 |
 | Country | `country` | country | ✅ | 🟡 reference uses a fixed 196-country catalog (`land`); we use Intl country names |
 | City | `city` | text | – | 🟡 |
-| Start date | `startDate` | month | ✅ | 🟡 reference date granularity (day vs month) unknown |
+| Start date | `startDate` | date (full) | ✅ | 🟡 shown as "14 March 2017" on review/admin |
 | End date | `endDate` | month | – | ✅ hint verified: "If no date is entered, this experience is considered ongoing to date." |
 | Diploma Date | `diplomaDate` | date | – | 🟡 |
 | Degree certificate / transcript | `certificate` | file | – | ours (kept from previous form); reference collects documents separately |
@@ -108,3 +108,4 @@ These deliberately diverge from the reference form and override earlier rows:
 - **Interview Availability:** section removed.
 - **Career breaks:** `breaks[]` with the verified 13-type catalog; *Social or voluntary purpose* shown for "Voluntary work" (placement of that conditional is inferred — confirm).
 - **Admin candidate file:** opening a submission shows a *Timeline gaps* card (education, work, overall) and a **Download Candidate File** button producing `CAND-XXXX.txt` with every answer plus the gap list; *Copy Full Candidate Data* includes the same gap section.
+- **2026-10-09 (later):** all start/end dates are full dates (`YYYY-MM-DD`), displayed as "14 March 2017" in review, admin and the candidate file; the CV parser uses the 1st of the month when a CV gives only month/year. In the Languages list, German is rated on A1–C2 (`cefr`) instead of the Native–Basic scale. Progress bar is a dotted stepper (✓ done / current / pending).

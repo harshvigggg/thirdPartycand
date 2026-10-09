@@ -6,7 +6,7 @@ import { STEPS } from '../public/schema.js';
 // Every property is required (empty string / empty list when unknown): the API limits optional properties in output schemas.
 const UNK = 'Unknown'; // enum placeholder: enums may not contain empty strings
 const STR = { type: 'string' }, opt = (props, extra = {}) => ({ type: 'object', properties: props, required: Object.keys(props), additionalProperties: false, ...extra });
-const month = { type: 'string', description: 'YYYY-MM, or empty if unknown' };
+const month = { type: 'string', description: 'YYYY-MM-DD; if the CV gives only month and year use the first day of that month; empty if unknown' };
 const opts = key => { for (const s of STEPS) for (const g of s.groups) for (const f of g.fields) if (f.k === key && f.o) return f.o; };
 const SCHEMA = opt({
   personal: opt({ firstName: STR, middleName: STR, lastName: STR, dateOfBirth: { type: 'string', description: 'YYYY-MM-DD or empty' }, gender: { type: 'string', enum: [...opts('gender'), UNK] },
@@ -16,13 +16,13 @@ const SCHEMA = opt({
   college: { type: 'array', items: opt({ degree: { type: 'string', enum: [...opts('degree'), UNK], description: 'Closest option, or "Other qualification"' }, degreeOther: { type: 'string', description: 'Original degree name when degree is "Other qualification"' },
     institution: STR, country: STR, city: STR, startDate: month, endDate: month }) },
   employment: { type: 'array', items: opt({ employer: STR, jobTitle: STR, department: STR, country: STR, city: STR, current: { type: 'string', enum: ['Yes', 'No'] }, startDate: month, endDate: month, responsibilities: STR }) },
-  languages: { type: 'array', items: opt({ name: STR, fluency: { type: 'string', enum: [...opts('fluency'), UNK] } }) },
+  languages: { type: 'array', items: opt({ name: STR, fluency: { type: 'string', enum: [...opts('fluency'), UNK], description: 'For every language except German' }, cefr: { type: 'string', enum: [...opts('level'), UNK], description: 'Only for German: CEFR level A1–C2' } }) },
   german: opt({ level: { type: 'string', enum: [...opts('level'), UNK] } }),
   skills: opt({ itSkills: { type: 'array', items: { type: 'string', enum: opts('itSkills') } } }),
 });
 
 const SYSTEM = `You extract facts from a nurse's CV into a fixed form. Fill only what the CV states or clearly implies; leave unknown fields as empty strings (or empty lists), and choose "Unknown" for a choice field you cannot determine. Never invent values.
-Dates: use YYYY-MM for months, YYYY-MM-DD for the date of birth. Mark a job as current ("Yes") only if the CV says so (e.g. "present", "till date").
+Dates: always YYYY-MM-DD; when a CV gives only a month and year, use the first day of that month. Mark a job as current ("Yes") only if the CV says so (e.g. "present", "till date").
 Schooling = school / high school; college = university degrees, diplomas and vocational training. For "degree" pick the closest listed option; if none fits use "Other qualification" and put the CV's wording in degreeOther.
 List education and jobs in chronological order (oldest first). Country names in English. Phone as "+<country code> <number>".`;
 
