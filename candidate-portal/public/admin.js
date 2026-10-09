@@ -37,14 +37,15 @@ ${j.items.map(x => `<tr tabindex="0" data-ref="${esc(x.ref)}"><td>${esc(x.ref)}<
 
 async function detail(ref) {
   const j = await api('?ref=' + encodeURIComponent(ref)); if (!j) return;
-  const { item, files } = j, secs = sections(item.data), tg = timelineGaps(item.data), anyGap = tg.some(t => t.gaps.length);
+  const { item, files, names = {} } = j, secs = sections(item.data), tg = timelineGaps(item.data), anyGap = tg.some(t => t.gaps.length);
+  const fname = f => names[f.path] || f.name;
   vals = [];
   const copy = v => `<button type="button" class="link" data-c="${vals.push(String(v)) - 1}">Copy</button>`;
   const gapLines = tg.map(t => `${t.title}: ${t.gaps.length ? t.gaps.join('; ') : 'no gaps'}`);
   const full = [`CANDIDATE DATA FILE`, `Reference ID: ${item.ref}`, `Name: ${item.full_name}`, `Submitted: ${when(item.created_at)}`,
     `\nTIMELINE GAPS (auto-detected, any full month without an entry)\n` + gapLines.join('\n'),
-    ...secs.map(s => `\n${s.title.toUpperCase()}\n` + s.items.map(it => it.h ? `-- ${it.h}` : `${it.l}: ${it.files ? it.files.map(f => f.name).join(', ') : it.v}`).join('\n'))].join('\n');
-  const link = f => files[f.path] ? `<a href="${esc(files[f.path])}" target="_blank" rel="noopener">${esc(f.name)}</a>` : esc(f.name);
+    ...secs.map(s => `\n${s.title.toUpperCase()}\n` + s.items.map(it => it.h ? `-- ${it.h}` : `${it.l}: ${it.files ? it.files.map(fname).join(', ') : it.v}`).join('\n'))].join('\n');
+  const link = f => files[f.path] ? `<a href="${esc(files[f.path])}" target="_blank" rel="noopener">${esc(fname(f))}</a> <small class="note">(${esc(f.name)})</small>` : esc(fname(f));
   app.innerHTML = `<p><a href="#">← All submissions</a></p><section class="card"><div class="rv-h"><div><h2 style="margin:0">${esc(item.full_name)}</h2><p class="note" style="margin:4px 0 0">${esc(item.ref)} · ${when(item.created_at)}</p></div><div class="nav" style="margin:0"><button type="button" class="btn" data-c="${vals.push(full) - 1}">Copy Full Candidate Data</button><button type="button" class="btn primary" data-dl="${vals.length - 1}" data-name="${esc(item.ref)}">Download Candidate File</button></div></div></section>`
     + `<section class="card ${anyGap ? 'warn' : ''}"><h3 style="margin-top:0">Timeline gaps${anyGap ? ' ⚠' : ''}</h3><p class="note">Auto-detected: any full month with no schooling, college, job or career break entry.</p>${tg.map(t => `<div class="row"><span class="k">${esc(t.title)}</span><span class="v${t.gaps.length ? ' gap-v' : ''}">${t.gaps.length ? t.gaps.map(esc).join('<br>') : 'No gaps'}</span></div>`).join('')}</section>`
     + secs.map(s => `<section class="card"><h3 style="margin-top:0">${s.title}</h3>${s.items.map(it => it.h ? `<h4>${esc(it.h)}</h4>`

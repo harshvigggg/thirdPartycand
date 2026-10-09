@@ -251,7 +251,9 @@ async function parseResume(path) {
     st.parsed = 1; save(); render();
     toast(n ? `We filled in ${n} answer${n === 1 ? '' : 's'} from your CV. Please check them as you go.` : 'We could not find details to fill in from this CV. Please type them in.');
   } catch (e) {
-    if (status()) status().textContent = 'We could not read details from this CV, but it is saved. Please type your answers.';
+    const m = `${e.message || 'We could not read details from this CV.'} Your CV is saved — please type your answers.`;
+    if (status()) status().textContent = m;
+    toast(m);
   }
 }
 const filled = v => v != null && v !== '' && !(Array.isArray(v) && !v.length);

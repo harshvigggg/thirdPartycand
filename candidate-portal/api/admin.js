@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { db, limited, BUCKET } from './_lib.js';
-import { filePaths } from '../public/schema.js';
+import { filePaths, fileNames } from '../public/schema.js';
 
 const authorized = k => {
   const a = Buffer.from(String(k || '')), b = Buffer.from(process.env.ADMIN_KEY || '');
@@ -21,10 +21,11 @@ export default async function handler(req, res) {
 
   const { data: item, error } = await sb.from('submissions').select('*').eq('ref', String(ref)).maybeSingle();
   if (error || !item) return res.status(404).json({ error: 'Submission not found.' });
-  const paths = filePaths(item.data), files = {};
-  if (paths.length) {
-    const { data } = await sb.storage.from(BUCKET).createSignedUrls(paths, 15 * 60); // links expire after 15 minutes
-    for (const x of data || []) if (x.signedUrl) files[x.path] = x.signedUrl;
-  }
-  res.json({ item, files });
+  const paths = filePaths(item.data), names = fileNames(item.data), files = {};
+  // One signed link per file (15 minutes) so each download is saved as "<Name>'s <Document>.<ext>".
+  await Promise.all(paths.map(async p => {
+    const { data } = await sb.storage.from(BUCKET).createSignedUrl(p, 15 * 60, { download: names[p] });
+    if (data?.signedUrl) files[p] = data.signedUrl;
+  }));
+  res.json({ item, files, names });
 }

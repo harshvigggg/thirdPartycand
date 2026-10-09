@@ -217,6 +217,18 @@ export function normalize(raw) {
   return out;
 }
 
+// Display / download names for uploaded files: "<Candidate name>'s <Field label>[ 2].<ext>".
+export function fileNames(d) {
+  const who = [d.personal?.firstName, d.personal?.lastName].filter(Boolean).join(' ').trim() || 'Candidate', out = {};
+  for (const st of STEPS) for (const g of st.groups) (g.repeat ? d[g.key] || [] : [d[g.key] || {}]).forEach((s, i) => {
+    for (const f of g.fields) if (f.t === 'file') (s[f.k] || []).forEach((x, j) => {
+      const ext = (x.path || '').split('.').pop() || 'pdf', n = (g.repeat ? ` ${i + 1}` : '') + (j ? ` (${j + 1})` : '');
+      out[x.path] = `${who}'s ${f.l.replace(/\s*\/.*$/, '')}${n}.${ext}`;
+    });
+  });
+  return out;
+}
+
 export function filePaths(d) {
   const out = [];
   for (const st of STEPS) for (const g of st.groups) for (const s of g.repeat ? d[g.key] || [] : [d[g.key] || {}])
