@@ -266,19 +266,29 @@ async function readCv(path) {
 const filled = v => v != null && v !== '' && !(Array.isArray(v) && !v.length);
 // Merges extracted answers into the draft without overwriting anything already typed. Returns how many answers were filled.
 function applyResume(x) {
-  let n = 0;
+  clearAutofill();
+  let n = 0; const auto = st.auto = {};
   for (const stp of STEPS) for (const g of stp.groups) {
     const src = x[g.key]; if (!src) continue;
     const keys = new Set(g.fields.filter(f => f.t !== 'file').map(f => f.k));
-    const fill = (dst, s) => { for (const k of keys) if (filled(s?.[k]) && !filled(dst[k])) { dst[k] = s[k]; n++; } };
-    if (!g.repeat) { fill(D[g.key], src); continue; }
+    const fill = (dst, s, base) => { for (const k of keys) if (filled(s?.[k]) && !filled(dst[k])) { dst[k] = s[k]; auto[`${base}.${k}`] = JSON.stringify(s[k]); n++; } };
+    if (!g.repeat) { fill(D[g.key], src, g.key); continue; }
     if (!Array.isArray(src)) continue;
     const typed = D[g.key].some(e => Object.values(e).some(filled));
     if (typed) continue;
-    D[g.key] = src.slice(0, g.repeat.max).map(e => { const o = {}; fill(o, e); return o; }).filter(o => Object.keys(o).length);
+    D[g.key] = src.slice(0, g.repeat.max).map((e, i) => { const o = {}; fill(o, e, `${g.key}.${i}`); return o; }).filter(o => Object.keys(o).length);
     if (!D[g.key].length && g.repeat.min) D[g.key] = [{}];
   }
   return n;
+}
+// Removes answers that came from an earlier CV and were not edited since, so a new CV starts clean while typed answers stay.
+function clearAutofill() {
+  for (const [p, v] of Object.entries(st.auto || {})) if (JSON.stringify(get(p)) === v) set(p, undefined);
+  for (const stp of STEPS) for (const g of stp.groups) if (g.repeat) {
+    D[g.key] = D[g.key].filter(e => Object.values(e).some(filled));
+    if (!D[g.key].length && g.repeat.min) D[g.key] = [{}];
+  }
+  st.auto = {};
 }
 
 /* ---------- events ---------- */
