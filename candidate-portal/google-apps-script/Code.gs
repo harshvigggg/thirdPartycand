@@ -72,7 +72,8 @@ function setup() {
     sh.setColumnWidth(i + 1, c.width);
   });
   sh.setRowHeight(1, 26); sh.setRowHeight(2, 38);
-  sh.setFrozenRows(2); sh.setFrozenColumns(3);
+  // Freeze through Age (column 4): the SUBMISSION and PERSON bands are merged cells and may not be cut by the freeze line.
+  sh.setFrozenRows(2); sh.setFrozenColumns(4);
 
   // Alignment per column.
   const col = k => COLS.findIndex(c => c.key === k) + 1;
