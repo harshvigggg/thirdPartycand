@@ -71,7 +71,7 @@ function paintIntro() {
 function intro() {
   const { status, button } = introState();
   return `<section class="card intro">
-<h2>Welcome</h2>
+<h2>Let’s get started.<br>Upload your CV first.</h2>
 <p>This form collects the details we need for your application. It takes about 15 minutes.</p>
 <p>Your answers are saved automatically on this device, so you can come back later and continue.</p>
 <h3>Start with your CV <span class="tag">Required</span></h3>
@@ -149,7 +149,7 @@ function field(f, s, base) {
     const type = f.t === 'date' || f.t === 'month' ? f.t : f.t === 'email' ? 'email' : 'text', len = f.t === 'date' ? 10 : 7;
     input = `<input id="${id}" data-p="${p}" type="${type}" value="${esc(v)}" maxlength="200"`
       + (f.t === 'country' ? ' list="countries" autocomplete="off"' : AC[f.k] ? ` autocomplete="${AC[f.k]}"` : '')
-      + (f.ph || f.t === 'month' ? ` placeholder="${esc(f.ph || 'YYYY-MM')}"` : '')
+      + ` placeholder="${esc(f.ph || ' ')}"`
       + (f.past ? ` max="${today().slice(0, len)}"` : '') + (f.future ? ` min="${today().slice(0, len)}"` : '') + '>';
   }
   const lab = f.t === 'radio' || f.t === 'multi' ? `<div class="lbl" id="${id}-l">${esc(f.l)}${req}</div>` : `<label class="lbl" for="${id}">${esc(f.l)}${req}</label>`;
