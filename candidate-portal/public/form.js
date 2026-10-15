@@ -1,4 +1,4 @@
-import { STEPS, FORM_STEPS, DOC_KINDS, NOTES, COUNTRIES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
+import { STEPS, FORM_STEPS, DOC_KINDS, NOTES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
 
 const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024, TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
@@ -106,7 +106,7 @@ function stepView(x) {
     const miss = gaps(timelineLists());
     h += `<div class="gap" id="gaps"${miss.length ? '' : ' hidden'}>${gapText(miss)}</div>`;
   }
-  h += `<h3>Notes</h3>${field({ ...NOTES, k: x.key }, D.notes, 'notes')}`;
+  h += `<div class="grid">${field({ ...NOTES, k: x.key }, D.notes, 'notes')}</div>`;
   return h + `</section><div class="nav"><button type="button" class="btn" data-act="go" data-s="${st.step - 1}">Back</button><button type="button" class="btn primary" data-act="next">${st.ret ? 'Save &amp; Return to Review' : 'Save &amp; Continue'}</button></div>`;
 }
 const gapText = miss => miss.length ? `<b>Your timeline has a gap:</b> ${esc(miss.join('; '))}. Please add what you did during this time (for example schooling, a course, a job or a career break) so nothing is missing.` : '';
@@ -129,7 +129,7 @@ function field(f, s, base) {
   const p = `${base}.${f.k}`, v = s[f.k], id = 'f-' + p.replace(/\./g, '-');
   const req = required(f, s, D) ? ' <b aria-hidden="true">*</b>' : '', cls = `fld${f.half ? ' half' : f.third ? ' third' : ''}`;
   if (f.t === 'check') return `<label class="chk ${cls}"><input type="checkbox" data-p="${p}"${v ? ' checked' : ''}><span>${esc(f.l)}</span></label>`;
-  if (f.t === 'file') { slotField[p] = f; return `<div class="${cls}" data-f="${p}"><div class="lbl">${esc(f.l)}${req}</div><div class="slot" data-slot="${p}">${slot(p)}</div><div class="err"></div></div>`; }
+  if (f.t === 'file') { slotField[p] = f; return `<div class="${cls}" data-f="${p}"><div class="lbl">${esc(f.l)}${req}</div><div class="ctl"><div class="slot" data-slot="${p}">${slot(p)}</div></div><div class="sub"><div class="err"></div></div></div>`; }
   let input;
   if (f.t === 'multi') {
     const sel = Array.isArray(v) ? v : [], long = f.o.length > 12, q = (filters[p] || '').toLowerCase();
@@ -148,12 +148,12 @@ function field(f, s, base) {
   } else {
     const type = f.t === 'date' || f.t === 'month' ? f.t : f.t === 'email' ? 'email' : 'text', len = f.t === 'date' ? 10 : 7;
     input = `<input id="${id}" data-p="${p}" type="${type}" value="${esc(v)}" maxlength="200"`
-      + (f.t === 'country' ? ' list="countries" autocomplete="off"' : AC[f.k] ? ` autocomplete="${AC[f.k]}"` : '')
+      + (AC[f.k] ? ` autocomplete="${AC[f.k]}"` : '')
       + ` placeholder="${esc(f.ph || ' ')}"`
       + (f.past ? ` max="${today().slice(0, len)}"` : '') + (f.future ? ` min="${today().slice(0, len)}"` : '') + '>';
   }
   const lab = f.t === 'radio' || f.t === 'multi' ? `<div class="lbl" id="${id}-l">${esc(f.l)}${req}</div>` : `<label class="lbl" for="${id}">${esc(f.l)}${req}</label>`;
-  return `<div class="${cls}" data-f="${p}">${lab}${input}${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}<div class="err"></div></div>`;
+  return `<div class="${cls}" data-f="${p}">${lab}<div class="ctl">${input}</div><div class="sub">${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}<div class="err"></div></div></div>`;
 }
 
 const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB';
@@ -275,11 +275,13 @@ async function readAll() {
 }
 const filled = v => v != null && v !== '' && !(Array.isArray(v) && !v.length);
 // Maps an extracted value onto the field's option list (exact, then case-insensitive containment); unmatched choices are dropped.
+const DEMONYMS = { indian: 'india', german: 'germany', british: 'united kingdom', english: 'united kingdom', american: 'united states', filipino: 'philippines', philippine: 'philippines', nepali: 'nepal', nepalese: 'nepal', pakistani: 'pakistan', bangladeshi: 'bangladesh', 'sri lankan': 'sri lanka', kenyan: 'kenya', nigerian: 'nigeria', ghanaian: 'ghana', vietnamese: 'vietnam', indonesian: 'indonesia', egyptian: 'egypt', tunisian: 'tunisia', moroccan: 'morocco', turkish: 'turkey', chinese: 'china', russian: 'russia', ukrainian: 'ukraine', brazilian: 'brazil', mexican: 'mexico', colombian: 'colombia', ugandan: 'uganda', zimbabwean: 'zimbabwe', ethiopian: 'ethiopia', jordanian: 'jordan', lebanese: 'lebanon', iranian: 'iran', iraqi: 'iraq', syrian: 'syria' };
 function coerce(f, v) {
   if (!f || v == null) return v;
   if (f.t === 'multi') return Array.isArray(v) ? v.map(x => coerce({ ...f, t: 'select' }, x)).filter(Boolean) : [];
   if (!f.o || typeof v !== 'string') return v;
-  const s = v.trim().toLowerCase(); if (!s) return '';
+  let s = v.trim().toLowerCase(); if (!s) return '';
+  s = DEMONYMS[s] || s;
   return f.o.find(o => o.toLowerCase() === s) || f.o.find(o => o.toLowerCase().includes(s)) || f.o.find(o => s.includes(o.toLowerCase())) || '';
 }
 // Merges extracted answers into the draft without overwriting anything already typed. Returns how many answers were filled.
@@ -387,6 +389,5 @@ app.addEventListener('focusout', () => dirty && save());
 document.addEventListener('visibilitychange', () => document.hidden && dirty && save());
 setInterval(() => dirty && save(), 30000);
 
-document.getElementById('countries').innerHTML = COUNTRIES.map(c => `<option value="${esc(c)}">`).join('');
 init(load());
 render();

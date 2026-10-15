@@ -1,11 +1,7 @@
 // Single source of truth for the form: used by the candidate form, the review screen, the admin view and the API.
-import { DEGREES, HOME_QUALIFICATIONS, CAREER_BREAKS, WORK_DEPARTMENTS, FACILITY_TYPES, EMPLOYMENT_TYPES, CHILDREN } from './catalogs.js';
+import { COUNTRIES, DEGREES, HOME_QUALIFICATIONS, CAREER_BREAKS, WORK_DEPARTMENTS, FACILITY_TYPES, EMPLOYMENT_TYPES, CHILDREN } from './catalogs.js';
 
-const names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' }) : null;
-const NON_COUNTRY = new Set(['AC', 'BV', 'CP', 'DG', 'EA', 'EU', 'EZ', 'HM', 'IC', 'QO', 'TA', 'UM', 'UN', 'XA', 'XB', 'ZZ']);
-export const COUNTRIES = [...new Set(Array.from({ length: 676 }, (_, i) => String.fromCharCode(65 + (i / 26 | 0), 65 + i % 26))
-  .filter(c => !NON_COUNTRY.has(c)).map(c => { try { return names?.of(c); } catch { return null; } }).filter(Boolean))]
-  .sort((a, b) => a.localeCompare(b));
+export { COUNTRIES };
 export const TIMEZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
 
 const YN = ['Yes', 'No'];
@@ -39,7 +35,7 @@ export const STEPS = [
   { key: 'basic', title: 'Basic Information', short: 'Basic', groups: [{ key: 'basic', fields: [
     { k: 'firstName', l: 'First Name', t: 'text', r: 1, name: 1, half: 1 },
     { k: 'lastName', l: 'Last Name', t: 'text', r: 1, name: 1, half: 1 },
-    { k: 'nationality', l: 'Nationality', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+    { k: 'nationality', l: 'Nationality', t: 'select', o: COUNTRIES, r: 1, half: 1 },
     { k: 'profession', l: 'Current Profession', t: 'text', r: 1, half: 1, ph: 'e.g. Registered Nurse' },
     { k: 'dateOfBirth', l: 'Date of Birth', t: 'date', r: 1, past: 1, half: 1 },
     { k: 'germanLevel', l: 'Current German Level', t: 'select', o: ['None', ...CEFR], half: 1 },
@@ -54,15 +50,15 @@ export const STEPS = [
       { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
       { k: 'endDate', l: 'End Date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-      { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
+      { k: 'country', l: 'Country', t: 'select', o: COUNTRIES, r: 1, half: 1 },
+      { k: 'diplomaDate', l: 'Diploma Date (date you received your degree / convocation date)', t: 'date', past: 1, half: 1 },
       { k: 'homeQualification', l: 'Name of Qualification in Home Country', t: 'select', o: HOME_QUALIFICATIONS },
       { k: 'homeQualificationOther', l: 'Other Qualification - Name of the Qualification in the Home Country', t: 'text', r: 1, if: e => e.homeQualification === OTHER_QUALIFICATION },
     ] },
   ] },
   { key: 'personal', title: 'Personal Details / Contact', short: 'Personal', groups: [{ key: 'personal', fields: [
     { k: 'placeOfBirth', l: 'Place of Birth', t: 'text', r: 1, half: 1 },
-    { k: 'countryOfBirth', l: 'Country of Birth', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+    { k: 'countryOfBirth', l: 'Country of Birth', t: 'select', o: COUNTRIES, r: 1, half: 1 },
     { k: 'birthName', l: 'Birth Name', t: 'text', name: 1, half: 1, hint: 'Only if different from your current name.' },
     { k: 'maritalStatus', l: 'Marital Status', t: 'select', o: MARITAL, half: 1 },
     { k: 'children', l: 'Children', t: 'select', o: CHILDREN, half: 1 },
@@ -73,15 +69,15 @@ export const STEPS = [
     { k: 'email', l: 'Email Address', t: 'email', r: 1 },
     { k: 'passportNumber', l: 'Passport Number', t: 'text', pattern: /^[A-Za-z0-9]{6,12}$/, msg: 'Use 6–12 letters or numbers, without spaces.', hint: 'Leave blank if you do not have a passport yet.', half: 1 },
   ] }] },
-  { key: 'schooling', title: 'Schooling', short: 'Schooling', note: 'Your school education (high school / school-leaving qualification).', groups: [
-    { key: 'schooling', timeline: 1, repeat: { min: 1, max: 5, item: 'School', add: 'Add Schooling' }, fields: [
-      { k: 'institution', l: 'Name of School', t: 'text', r: 1, half: 1 },
+  { key: 'schooling', title: 'Schooling (Class 12 / +2)', short: 'Schooling', note: 'Enter the school where you completed Class 12 / +2.', groups: [
+    { key: 'schooling', timeline: 1, repeat: { min: 1, max: 1, item: 'School (Class 12 / +2)', add: 'Add Schooling' }, fields: [
+      { k: 'institution', l: 'Name of School (Class 12 / +2)', t: 'text', r: 1, half: 1 },
       { k: 'institutionGerman', l: 'Name of School in German', t: 'text', half: 1, hint: 'Leave blank if you are not sure — we can translate it.' },
       { k: 'startDate', l: 'Start Date', t: 'date', r: 1, past: 1, half: 1 },
       { k: 'endDate', l: 'End Date', t: 'date', after: 'startDate', half: 1, hint: ONGOING },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
-      { k: 'diplomaDate', l: 'Diploma Date', t: 'date', past: 1, half: 1 },
+      { k: 'country', l: 'Country', t: 'select', o: COUNTRIES, r: 1, half: 1 },
+      { k: 'diplomaDate', l: 'Diploma Date (date you received your certificate)', t: 'date', past: 1, half: 1 },
     ] },
   ] },
   { key: 'employment', title: 'Work Experience', short: 'Work', note: 'Add every job and internship from your first to your current one. If there was a time when you were not working, add it as a career break so your timeline has no gaps.', groups: [
@@ -96,7 +92,7 @@ export const STEPS = [
       { k: 'endDate', l: 'End Date', t: 'date', r: 1, if: e => e.current !== 'Yes', past: 1, after: 'startDate', half: 1 },
       { k: 'employmentType', l: 'Employment Type', t: 'select', r: 1, o: EMPLOYMENT_TYPES, half: 1 },
       { k: 'city', l: 'City', t: 'text', half: 1 },
-      { k: 'country', l: 'Country', t: 'country', r: 1, half: 1, ph: 'Start typing a country' },
+      { k: 'country', l: 'Country', t: 'select', o: COUNTRIES, r: 1, half: 1 },
       { k: 'responsibilities', l: 'Tasks', t: 'textarea', r: 1, ph: 'Your main duties in this job' },
       { k: 'conditions', l: 'Conditions Treated', t: 'textarea', ph: 'e.g. post-operative care, sepsis, stroke' },
       { k: 'equipment', l: 'Equipment Used', t: 'textarea', ph: 'e.g. ventilator, infusion pump, ECG monitor' },
@@ -129,7 +125,7 @@ export const STEPS = [
     ] },
   ] },
   { key: 'language', title: 'Languages', short: 'Languages', groups: [
-    { key: 'languages', repeat: { min: 1, max: 10, item: 'Language', add: 'Add Language' }, fields: [
+    { key: 'languages', repeat: { min: 1, max: 2, item: 'Language', add: 'Add Language' }, fields: [
       { k: 'name', l: 'Language', t: 'text', r: 1, ph: 'e.g. English', half: 1 },
       { k: 'fluency', l: 'Proficiency', t: 'select', r: 1, o: SKILL, half: 1, if: l => !isGerman(l) },
       { k: 'cefr', l: 'Proficiency', t: 'select', r: 1, o: CEFR, half: 1, if: isGerman, hint: 'German is rated on the A1–C2 scale.' },
@@ -191,7 +187,6 @@ function check(f, v, s, g, d, o) {
   if (f.pattern && !f.pattern.test(v)) return f.msg;
   if (f.t === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Please enter a valid email address.';
   if (f.t === 'phone' && !/^\+\d{1,4} \d{6,14}$/.test(v)) return 'Enter the country code and number, digits only (6–14 digits).';
-  if (f.t === 'country' && o.client && COUNTRIES.length && !COUNTRIES.includes(v)) return 'Please choose a country from the list.';
   if (f.t === 'date' || f.t === 'month') {
     if (!(f.t === 'date' ? /^\d{4}-\d{2}-\d{2}$/ : /^\d{4}-\d{2}$/).test(v) || v < '1900') return 'Please enter a valid date.';
     const n = v.length, slack = o.client ? 0 : 1; // server allows one day for time-zone differences
