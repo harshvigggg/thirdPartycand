@@ -305,6 +305,10 @@ function applyResume(x) {
     D[g.key] = src.slice(0, g.repeat.max).map((e, i) => { const o = {}; fill(o, e, `${g.key}.${i}`); return o; }).filter(o => Object.keys(o).length);
     if (!D[g.key].length && g.repeat.min) D[g.key] = [{}];
   }
+  // A CV that lists jobs also answers "Are you currently working?".
+  if (!filled(D.work.workNow) && D.employment.some(e => filled(e.employer) || filled(e.jobTitle))) {
+    D.work.workNow = D.employment.some(e => e.current === 'Yes') ? 'Yes' : 'No'; auto['work.workNow'] = JSON.stringify(D.work.workNow); n++;
+  }
   return n;
 }
 // Removes answers that came from an earlier CV and were not edited since, so a new CV starts clean while typed answers stay.

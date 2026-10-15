@@ -68,3 +68,33 @@ test('file names and admin sections', () => {
   assert.equal(timelineGaps(raw)[2].gaps[0], 'Apr 2012 – May 2013');
   assert.equal(Object.keys(DOC_KINDS).join(), 'cv,passport,nationalId,degree,transcript,germanCertificate,experienceLetters');
 });
+
+import { candidateSummary, months } from '../public/schema.js';
+test('"Are you currently working?" is required and cross-checked against the jobs', () => {
+  const job = { current: 'Yes', startDate: '2021-03-01' };
+  assert.ok(errs('employment', { work: {}, employment: [], breaks: [] })['work.workNow']);
+  assert.match(errs('employment', { work: { workNow: 'Yes' }, employment: [], breaks: [] })['work.workNow'], /current job/);
+  assert.match(errs('employment', { work: { workNow: 'No' }, employment: [job], breaks: [] })['work.workNow'], /marked as current/);
+  assert.equal(errs('employment', { work: { workNow: 'Yes' }, employment: [job], breaks: [] })['work.workNow'], undefined);
+  assert.equal(errs('employment', { work: { workNow: 'No' }, employment: [], breaks: [] })['work.workNow'], undefined);
+});
+test('months() pluralises', () => assert.equal(months(13), '1 Year 1 Month'));
+test('sheet summary: one row with the requested fields', () => {
+  const sm = candidateSummary({
+    basic: { firstName: 'Priya', lastName: 'Sharma', dateOfBirth: '1995-03-14' },
+    college: [{ degree: DEGREES[0], startDate: '2013-06-01', endDate: '2017-05-01' }], schooling: [{ startDate: '2011-06-01', endDate: '2013-03-01' }],
+    employment: [{ department: 'ICU', startDate: '2017-08-01', endDate: '2020-12-01', current: 'No' }, { department: 'Emergency', startDate: '2021-03-01', current: 'Yes' }],
+    work: { workNow: 'Yes' }, german: { learning: 'Yes', examLevel: 'B1', examStatus: 'Fully Passed' }, breaks: [], languages: [],
+    documents: { cv: [{ path: 'a/b.pdf' }], passport: [{ path: 'a/p.pdf' }] },
+  });
+  assert.equal(sm.name, 'Priya Sharma');
+  assert.ok(sm.age >= 30);
+  assert.equal(sm.degree, DEGREES[0]);
+  assert.equal(sm.department, 'Emergency · ICU');            // current job first
+  assert.equal(sm.currentlyWorking, 'Yes');
+  assert.equal(sm.germanCert, 'B1 – Fully Passed');
+  assert.match(sm.gaps, /Apr 2013 – May 2013/);
+  assert.equal(sm.cvName, "Priya Sharma's CV.pdf");           // CV only, never the passport
+  assert.equal(candidateSummary({}).germanCert, 'No certificate');
+  assert.equal(candidateSummary({}).gaps, 'None');
+});

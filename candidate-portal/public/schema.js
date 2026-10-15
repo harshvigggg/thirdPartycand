@@ -81,6 +81,11 @@ export const STEPS = [
     ] },
   ] },
   { key: 'employment', title: 'Work Experience', short: 'Work', note: 'Add every job and internship from your first to your current one. If there was a time when you were not working, add it as a career break so your timeline has no gaps.', groups: [
+    { key: 'work', fields: [
+      { k: 'workNow', l: 'Are you currently working?', t: 'radio', r: 1, o: YN,
+        cross: (v, d) => v === 'Yes' && !(d.employment || []).some(e => e?.current === 'Yes') ? 'Add your current job below and mark "Currently working here?" as Yes, or change this answer.'
+          : v === 'No' && (d.employment || []).some(e => e?.current === 'Yes') ? 'One of your jobs is marked as current. Change this answer to Yes, or update that job.' : '' },
+    ] },
     { key: 'employment', title: '1. Jobs & Internships', timeline: 1, repeat: { min: 0, max: 15, item: 'Job', add: 'Add Job', none: 'Add your jobs, starting with the first one. If you have no work experience yet, just continue.' }, fields: [
       { k: 'jobTitle', l: 'Position', t: 'text', r: 1, half: 1, ph: 'e.g. Staff Nurse' },
       { k: 'employer', l: 'Name of Hospital', t: 'text', r: 1, half: 1 },
@@ -183,6 +188,7 @@ function check(f, v, s, g, d, o) {
   if (typeof v !== 'string') return 'Please check this answer.';
   if (v.length > (f.t === 'textarea' ? 2000 : 200)) return 'This answer is too long.';
   if (f.o && !f.o.includes(v)) return 'Please choose an option.';
+  if (f.cross) { const m = f.cross(v, d); if (m) return m; }
   if (f.name && !/^[\p{L}\p{M} .'-]+$/u.test(v)) return 'Please use letters only.';
   if (f.pattern && !f.pattern.test(v)) return f.msg;
   if (f.t === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Please enter a valid email address.';
@@ -268,7 +274,7 @@ export function experience(list = []) {
   for (const [a, b] of iv) { const s = Math.max(a, end + 1); if (b >= s) { n += b - s + 1; end = b; } }
   return n;
 }
-export const months = m => `${m / 12 | 0} Years ${m % 12} Months`;
+export const months = m => { const y = m / 12 | 0, r = m % 12; return `${y} Year${y === 1 ? '' : 's'} ${r} Month${r === 1 ? '' : 's'}`; };
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const fmtMonth = s => /^\d{4}-\d{2}/.test(s || '') ? `${MON[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '';
@@ -322,4 +328,35 @@ export function timelineGaps(raw) {
     { title: 'Work timeline (jobs → career breaks)', gaps: gaps(work) },
     { title: 'Overall timeline (education + work + breaks, up to today)', gaps: gaps([...edu, ...work]) },
   ];
+}
+
+// ---------- Google Sheet summary: one row per candidate ----------
+const ageOf = dob => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob || '')) return '';
+  const t = today(), a = +t.slice(0, 4) - +dob.slice(0, 4);
+  return a - (t.slice(5) < dob.slice(5) ? 1 : 0);
+};
+const lastDate = e => e.current === 'Yes' ? '9999-12' : (e.endDate || e.startDate || '');
+export function candidateSummary(raw) {
+  const d = normalize(raw), jobs = [...d.employment].sort((a, b) => lastDate(b).localeCompare(lastDate(a)));
+  const m = experience(d.employment), g = d.german, lvl = d.skills.germanLevel || d.basic.germanLevel;
+  const degs = [...d.college].sort((a, b) => (a.endDate || a.startDate || '').localeCompare(b.endDate || b.startDate || ''))
+    .map(c => c.degree === OTHER_DEGREE ? c.degreeOther || c.degree : c.degree).filter(Boolean);
+  const gapList = timelineGaps(raw)[2].gaps;
+  const cvFile = (d.documents.cv || [])[0];
+  let cert = 'No certificate';
+  if (g.learning === 'Yes' && g.examLevel) cert = `${g.examLevel} – ${g.examStatus || 'Status not given'}${g.nextBooked === 'Yes' && g.nextLevel ? ` · next: ${g.nextLevel} on ${fmtDate(g.nextDate)}` : ''}`;
+  else if (lvl && lvl !== 'None') cert = `${lvl} (no certificate yet)`;
+  return {
+    name: [d.basic.firstName, d.basic.lastName].filter(Boolean).join(' '),
+    age: ageOf(d.basic.dateOfBirth),
+    degree: [...new Set(degs)].join('\n'),
+    totalExp: m ? months(m) : 'No experience',
+    department: [...new Set(jobs.map(j => j.department).filter(Boolean))].join(' · '),
+    currentlyWorking: d.work?.workNow || (d.employment.some(e => e.current === 'Yes') ? 'Yes' : 'No'),
+    germanCert: cert,
+    gaps: gapList.length ? gapList.join('\n') : 'None',
+    cvName: cvFile ? fileNames(d)[cvFile.path] : '',
+    cvPath: cvFile?.path || '',
+  };
 }

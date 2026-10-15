@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 export const BUCKET = 'candidate-files';
@@ -23,3 +24,14 @@ export function guard(req, res, name, max) {
   if (limited(req, name, max)) return stop(429, 'Too many requests. Please wait a few minutes and try again.');
   return false;
 }
+
+// Admin access key check (constant time). The key must be at least 12 characters.
+export const isAdmin = k => {
+  const a = Buffer.from(String(k || '')), b = Buffer.from(process.env.ADMIN_KEY || '');
+  return b.length >= 12 && a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+// Durable link to a candidate's CV for the Google Sheet: the link carries a signature of the reference, and
+// /api/cv exchanges it for a short-lived download URL each time it is opened.
+export const cvSig = ref => crypto.createHmac('sha256', process.env.ADMIN_KEY || '').update('cv:' + ref).digest('hex').slice(0, 32);
+export const siteUrl = req => process.env.SITE_URL || `https://${req?.headers?.['x-forwarded-host'] || req?.headers?.host || 'localhost:3000'}`.replace('https://localhost', 'http://localhost');

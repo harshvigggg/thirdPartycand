@@ -1,17 +1,12 @@
-import crypto from 'node:crypto';
-import { db, limited, BUCKET } from './_lib.js';
+import { db, limited, isAdmin, BUCKET } from './_lib.js';
 import { filePaths, fileNames } from '../public/schema.js';
 
-const authorized = k => {
-  const a = Buffer.from(String(k || '')), b = Buffer.from(process.env.ADMIN_KEY || '');
-  return b.length >= 12 && a.length === b.length && crypto.timingSafeEqual(a, b);
-};
 
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
   if (limited(req, 'admin', 200)) return res.status(429).json({ error: 'Too many requests. Please wait a few minutes.' });
-  if (!authorized(req.headers['x-admin-key'])) return res.status(401).json({ error: 'Unauthorized' });
+  if (!isAdmin(req.headers['x-admin-key'])) return res.status(401).json({ error: 'Unauthorized' });
 
   const sb = db(), ref = req.query.ref;
   if (!ref) {
