@@ -12,7 +12,7 @@ test('8 sections in sheet order, then documents last', () => {
 });
 test('only the CV is collected up front', () => assert.equal(fields('documents').filter(f => f.intro).map(f => f.k).join(), 'cv'));
 test('field order follows the sheet', () => {
-  assert.equal(F('basic').slice(2).join(), 'nationality,profession,dateOfBirth,germanLevel,gender');
+  assert.equal(F('basic').slice(2).join(), 'nationality,profession,dateOfBirth,germanLevel,plannedB2,gender');
   assert.equal(F('college').filter(k => !k.endsWith('Other')).join(), 'institutionOriginal,institution,degree,startDate,endDate,city,country,diplomaDate,homeQualification');
   assert.equal(F('personal').join(), 'placeOfBirth,countryOfBirth,birthName,maritalStatus,children,street,zip,city,phone,email,passportNumber');
   assert.equal(F('schooling').join(), 'institution,institutionGerman,startDate,endDate,city,country,diplomaDate');
@@ -109,7 +109,8 @@ test('planned first B2 attempt is asked on page 1 and required unless B2+ alread
 test('a Word CV is accepted and named like any other document', () => {
   const cv = fields('documents').find(x => x.k === 'cv');
   assert.equal(cv.word, 1);
-  const raw = { basic: { firstName: 'Anita', lastName: 'Verma' }, documents: { cv: [{ path: 'a/b.docx', name: 'cv.docx' }] }, college: [], schooling: [], employment: [], breaks: [], languages: [] };
-  assert.equal(fileNames(raw)['a/b.docx'], "Anita Verma's CV.docx");
+  const path = '00000000-0000-4000-8000-000000000000/11111111-1111-4111-8111-111111111111.docx';
+  const raw = { basic: { firstName: 'Anita', lastName: 'Verma' }, documents: { cv: [{ path, name: 'cv.docx' }] }, college: [], schooling: [], employment: [], breaks: [], languages: [] };
+  assert.equal(fileNames(raw)[path], "Anita Verma's CV.docx");
   assert.equal(validate(normalize(raw))['documents.cv'], undefined);
 });
