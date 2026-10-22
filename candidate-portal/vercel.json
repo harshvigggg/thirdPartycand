@@ -4,6 +4,16 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "candidateinfoadmin.vercel.app"
+        }
+      ],
+      "destination": "/admin"
+    },
+    {
       "source": "/candidate-form",
       "destination": "/"
     }

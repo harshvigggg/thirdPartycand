@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db, guard, BUCKET, UUID } from './_lib.js';
 import { STEPS, DOC_KINDS } from '../public/schema.js';
+import WordExtractor from 'word-extractor';
 
 // Reads the candidate's uploaded documents (CV, passport, ID, degree, transcript, German certificate, experience letters)
 // and returns answers for the form. Only fields the form actually has are returned; unknown values stay empty.
@@ -12,7 +13,7 @@ const date = { type: 'string', description: 'YYYY-MM-DD; if only month and year 
 const opts = (group, key) => { for (const s of STEPS) for (const g of s.groups) if (g.key === group) for (const f of g.fields) if (f.k === key && f.o) return f.o; };
 const en = (group, key) => ({ type: 'string', enum: [...opts(group, key), UNK] });
 const SCHEMA = opt({
-  basic: opt({ firstName: STR, lastName: STR, nationality: { type: 'string', description: 'Country name in English' }, profession: STR, dateOfBirth: date, germanLevel: en('basic', 'germanLevel'), gender: en('basic', 'gender') }),
+  basic: opt({ firstName: STR, lastName: STR, nationality: { type: 'string', description: 'Country name in English' }, profession: STR, dateOfBirth: date, germanLevel: en('basic', 'germanLevel'), plannedB2: { type: 'string', description: 'Planned date of the first B2 German exam attempt, YYYY-MM-DD, only if the CV states it' }, gender: en('basic', 'gender') }),
   college: { type: 'array', items: opt({ institutionOriginal: STR, institution: { type: 'string', description: 'The college name translated to German' }, degree: { ...en('college', 'degree'), description: 'Closest option, or "Other qualification"' },
     degreeOther: { type: 'string', description: 'Original degree name when degree is "Other qualification"' }, startDate: date, endDate: date, city: STR, country: STR, diplomaDate: date,
     homeQualification: { type: 'string', description: 'Official name of the qualification as written in the home country, e.g. "B.Sc. Nursing (4 years)"' } }) },
@@ -33,13 +34,20 @@ Schooling = ONLY the school where the candidate completed Class 12 / +2 / higher
 
 const clean = o => Array.isArray(o) ? o.map(clean) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, clean(v)])) : o === UNK ? '' : o;
 const mime = p => p.endsWith('.pdf') ? 'application/pdf' : p.endsWith('.png') ? 'image/png' : 'image/jpeg';
+// Word files (.docx / .doc) are turned into plain text so the reader sees exactly what the candidate wrote.
+async function wordToText(buf) {
+  const doc = await new WordExtractor().extract(buf);
+  const text = [doc.getHeaders?.(), doc.getBody(), doc.getFootnotes?.(), doc.getEndnotes?.()].filter(Boolean).join('\n').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!text) throw new Error('empty Word document');
+  return text;
+}
 const MAX_TOTAL = 18 * 1024 * 1024; // keep the model request comfortably under its inline-data limit
 
 // Tries each model in turn; a model that is overloaded or rate-limited (429/503) is skipped.
 const GEMINI_MODELS = [...new Set([process.env.GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite'].filter(Boolean))];
 async function withGemini(files) {
   const strip = o => Array.isArray(o) ? o.map(strip) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'additionalProperties').map(([k, v]) => [k, strip(v)])) : o;
-  const parts = files.flatMap(f => [{ text: `Document: ${f.label}` }, { inlineData: { mimeType: f.mime, data: f.b64 } }]);
+  const parts = files.flatMap(f => [{ text: `Document: ${f.label}` }, f.text ? { text: f.text } : { inlineData: { mimeType: f.mime, data: f.b64 } }]);
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: [{ role: 'user', parts: [...parts, { text: 'Extract these documents into the form.' }] }],
@@ -66,7 +74,7 @@ async function withGemini(files) {
 async function withClaude(files) {
   const client = new Anthropic();
   const content = files.flatMap(f => [{ type: 'text', text: `Document: ${f.label}` },
-    f.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.b64 } } : { type: 'image', source: { type: 'base64', media_type: f.mime, data: f.b64 } }]);
+    f.text ? { type: 'text', text: f.text } : f.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.b64 } } : { type: 'image', source: { type: 'base64', media_type: f.mime, data: f.b64 } }]);
   const r = await client.beta.messages.create({
     model: 'claude-opus-5-5', max_tokens: 16000,
     output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
@@ -82,7 +90,7 @@ export default async function handler(req, res) {
   if (guard(req, res, 'parse', 10)) return;
   if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'Document reading is not set up yet.' });
   const { session, docs } = req.body || {};
-  const own = p => typeof p === 'string' && p.startsWith(session.toLowerCase() + '/') && /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png)$/.test(p);
+  const own = p => typeof p === 'string' && p.startsWith(session.toLowerCase() + '/') && /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png|docx|doc)$/.test(p);
   if (!UUID.test(String(session)) || !Array.isArray(docs) || !docs.length || docs.length > 20 || !docs.every(d => DOC_KINDS[d?.kind] && own(d.path)))
     return res.status(400).json({ error: 'Please upload your documents again.' });
 
@@ -94,6 +102,11 @@ export default async function handler(req, res) {
     const buf = Buffer.from(await blob.arrayBuffer());
     if (total + buf.length > MAX_TOTAL) { console.warn('parse-docs: skipping', d.kind, 'over size budget'); continue; }
     total += buf.length;
+    if (/\.docx?$/.test(d.path)) {
+      try { files.push({ label: DOC_KINDS[d.kind], text: await wordToText(buf) }); }
+      catch (e) { console.warn('parse-docs: could not read Word file', d.kind, e.message); }
+      continue;
+    }
     files.push({ label: DOC_KINDS[d.kind], mime: mime(d.path), b64: buf.toString('base64') });
   }
   if (!files.length) return res.status(404).json({ error: 'Your documents could not be found. Please upload them again.' });

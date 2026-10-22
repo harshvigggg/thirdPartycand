@@ -1,6 +1,11 @@
 import { STEPS, FORM_STEPS, DOC_KINDS, NOTES, TIMEZONES, validate, sections, visible, required, experience, months, today, spanLabel, gaps } from './schema.js';
 
-const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024, TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
+const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024;
+const TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
+// The CV may also be a Word file; it is converted to text on the server before it is read.
+const WORD = { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/msword': 'doc' };
+const docTypes = f => f.word ? [...TYPES, ...Object.keys(WORD)] : TYPES, docAccept = f => f.word ? ACCEPT + ',.doc,.docx' : ACCEPT;
+const fileType = file => file.type || ({ pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', docx: Object.keys(WORD)[0], doc: Object.keys(WORD)[1] })[file.name.split('.').pop().toLowerCase()] || '';
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
 const N = FORM_STEPS.length, app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -160,13 +165,13 @@ const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1
 function slot(p) {
   const f = slotField[p], files = get(p) || [], up = uploading[p] || [];
   return files.map((x, i) => {
-    const u = previews[x.path], pdf = x.type === 'application/pdf';
-    return `<div class="file">${u && !pdf ? `<img class="th" src="${u}" alt="">` : `<span class="th">${pdf ? 'PDF' : 'IMG'}</span>`}<span class="fn">${u ? `<a href="${u}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}<small>${kb(x.size)}</small></span><button type="button" class="x" data-del="${p}" data-i="${i}" aria-label="Remove ${esc(x.name)}">×</button></div>`;
+    const u = previews[x.path], ext = (x.path || '').split('.').pop().toUpperCase(), img = /^(JPG|PNG)$/.test(ext);
+    return `<div class="file">${u && img ? `<img class="th" src="${u}" alt="">` : `<span class="th">${img ? 'IMG' : ext}</span>`}<span class="fn">${u ? `<a href="${u}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}<small>${kb(x.size)}</small></span><button type="button" class="x" data-del="${p}" data-i="${i}" aria-label="Remove ${esc(x.name)}">×</button></div>`;
   }).join('')
     + up.map(u => `<div class="file"><span class="th">…</span><span class="fn">${esc(u.name)}<span class="bar"><i style="width:${u.pct}%"></i></span></span></div>`).join('')
     + (f.multi || !files.length
-      ? `<label class="drop"><input class="vh" type="file" data-up="${p}" accept="${ACCEPT}"${f.multi ? ' multiple' : ''}><b>${files.length ? 'Add another file' : 'Click to upload'}</b> or drag a file here<small>PDF / JPG / PNG · up to 10 MB</small></label>`
-      : `<label class="replace"><input class="vh" type="file" data-up="${p}" accept="${ACCEPT}">Replace file</label>`);
+      ? `<label class="drop"><input class="vh" type="file" data-up="${p}" accept="${docAccept(f)}"${f.multi ? ' multiple' : ''}><b>${files.length ? 'Add another file' : 'Click to upload'}</b> or drag a file here<small>${f.word ? 'PDF / Word (.docx, .doc) / JPG / PNG' : 'PDF / JPG / PNG'} · up to 10 MB</small></label>`
+      : `<label class="replace"><input class="vh" type="file" data-up="${p}" accept="${docAccept(f)}">Replace file</label>`);
 }
 function paintSlot(p) { const el = app.querySelector(`[data-slot="${p}"]`); if (el) el.innerHTML = slot(p); }
 function fileErr(p, m) { const el = app.querySelector(`[data-f="${p}"]`); if (el) { el.querySelector('.err').textContent = m; el.classList.toggle('bad', !!m); } }
@@ -225,10 +230,10 @@ async function submit(b) {
   } catch (err) { b.disabled = false; b.textContent = 'Submit'; toast(err.message); }
 }
 
-const put = (url, file, prog) => new Promise((ok, no) => {
+const put = (url, file, type, prog) => new Promise((ok, no) => {
   const x = new XMLHttpRequest();
   x.open('PUT', url);
-  x.setRequestHeader('content-type', file.type);
+  x.setRequestHeader('content-type', type);
   x.upload.onprogress = e => e.lengthComputable && prog(Math.round(e.loaded / e.total * 100));
   x.onload = () => x.status < 300 ? ok() : no(new Error('Upload failed. Please try again.'));
   x.onerror = () => no(new Error('Network error during upload. Please try again.'));
@@ -238,18 +243,19 @@ const put = (url, file, prog) => new Promise((ok, no) => {
 async function upload(p, list) {
   const f = slotField[p];
   for (const file of list.slice(0, f.multi ? 10 : 1)) {
-    if (!TYPES.includes(file.type)) { fileErr(p, 'Only PDF, JPG or PNG files are allowed.'); continue; }
+    const type = fileType(file);
+    if (!docTypes(f).includes(type)) { fileErr(p, f.word ? 'Only PDF, Word (.docx / .doc), JPG or PNG files are allowed.' : 'Only PDF, JPG or PNG files are allowed.'); continue; }
     if (file.size > MAX) { fileErr(p, 'This file is larger than 10 MB.'); continue; }
     fileErr(p, '');
     const u = { name: file.name, pct: 0 };
     (uploading[p] ||= []).push(u); paintSlot(p);
     try {
-      const r = await fetch('/api/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: st.session, type: file.type, size: file.size }) });
+      const r = await fetch('/api/upload-url', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: st.session, type, size: file.size }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error);
-      await put(j.url, file, n => { u.pct = n; paintSlot(p); });
+      await put(j.url, file, type, n => { u.pct = n; paintSlot(p); });
       previews[j.path] = URL.createObjectURL(file);
-      const item = { name: file.name.slice(0, 200), path: j.path, type: file.type, size: file.size };
+      const item = { name: file.name.slice(0, 200), path: j.path, type, size: file.size };
       set(p, f.multi ? [...(get(p) || []), item] : [item]); save(); paintIntro();
     } catch (e) { fileErr(p, e.message || 'Upload failed. Please try again.'); }
     uploading[p] = uploading[p].filter(x => x !== u); paintSlot(p);

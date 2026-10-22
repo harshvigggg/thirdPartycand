@@ -39,6 +39,7 @@ export const STEPS = [
     { k: 'profession', l: 'Current Profession', t: 'text', r: 1, half: 1, ph: 'e.g. Registered Nurse' },
     { k: 'dateOfBirth', l: 'Date of Birth', t: 'date', r: 1, past: 1, half: 1 },
     { k: 'germanLevel', l: 'Current German Level', t: 'select', o: ['None', ...CEFR], half: 1 },
+    { k: 'plannedB2', l: 'Planned first B2 exam attempt', t: 'date', r: s => !/^(B2|C1|C2)$/.test(s.germanLevel || ''), half: 1, hint: 'The date you plan to sit the B2 exam for the first time. Not needed if you already hold B2 or higher.' },
     { k: 'gender', l: 'Gender', t: 'radio', r: 1, o: ['Male', 'Female', 'Other', 'Prefer not to say'] },
   ] }] },
   { key: 'college', title: 'College / Higher Education', short: 'College', note: 'Add each degree, diploma or vocational training in the order you did them.', groups: [
@@ -151,7 +152,7 @@ export const STEPS = [
   ] }] },
   // The CV is collected on the intro page (`intro: 1`) and read to pre-fill the sections above; the other documents are the last step.
   { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
-    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, intro: 1, hint: 'We read your CV to fill in the form for you.' },
+    { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, intro: 1, word: 1, hint: 'PDF or Word file. We read your CV to fill in the form for you.' },
     { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => !!d.personal?.passportNumber },
     { k: 'nationalId', l: 'National ID', t: 'file' },
     { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file' },
@@ -175,7 +176,7 @@ export const today = (offset = 0) => { const d = new Date(Date.now() + offset * 
 export const visible = (f, s, d) => !f.if || !!f.if(s || {}, d || {});
 export const required = (f, s, d) => typeof f.r === 'function' ? !!f.r(s || {}, d || {}) : !!f.r;
 const empty = v => v == null || v === false || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length);
-const FILE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png)$/;
+const FILE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|jpg|png|docx|doc)$/;
 
 function check(f, v, s, g, d, o) {
   if (empty(v)) return required(f, s, d) ? (f.t === 'file' ? 'Please upload this document.' : f.t === 'multi' ? 'Please choose at least one option.' : f.o || f.t === 'tz' ? 'Please choose an option.' : 'This field is required.') : '';

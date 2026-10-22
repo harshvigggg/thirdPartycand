@@ -98,3 +98,18 @@ test('sheet summary: one row with the requested fields', () => {
   assert.equal(candidateSummary({}).germanCert, 'No certificate');
   assert.equal(candidateSummary({}).gaps, 'None');
 });
+test('planned first B2 attempt is asked on page 1 and required unless B2+ already held', () => {
+  const f = fields('basic').find(x => x.k === 'plannedB2');
+  assert.ok(f && f.t === 'date');
+  assert.equal(F('basic').indexOf('plannedB2'), F('basic').indexOf('germanLevel') + 1);
+  const base = { firstName: 'A', lastName: 'B', nationality: 'India', profession: 'Nurse', dateOfBirth: '1990-01-01', gender: 'Female' };
+  assert.ok(errs('basic', { basic: { ...base, germanLevel: 'A2' } })['basic.plannedB2']);
+  assert.equal(errs('basic', { basic: { ...base, germanLevel: 'B2' } })['basic.plannedB2'], undefined);
+});
+test('a Word CV is accepted and named like any other document', () => {
+  const cv = fields('documents').find(x => x.k === 'cv');
+  assert.equal(cv.word, 1);
+  const raw = { basic: { firstName: 'Anita', lastName: 'Verma' }, documents: { cv: [{ path: 'a/b.docx', name: 'cv.docx' }] }, college: [], schooling: [], employment: [], breaks: [], languages: [] };
+  assert.equal(fileNames(raw)['a/b.docx'], "Anita Verma's CV.docx");
+  assert.equal(validate(normalize(raw))['documents.cv'], undefined);
+});
