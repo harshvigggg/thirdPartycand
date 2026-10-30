@@ -132,3 +132,11 @@ Catalogs: Type of Facility = reference `einrichtungstyp` (+ Other), Department =
 Document reading: `api/parse-docs.js` can read several documents in one request, but the form currently sends only the CV (uploaded on the intro); the other documents are collected on the last page and stored. Catalog choices free-text choices (department, home qualification) are matched onto the form's option lists in the browser.
 - **Work page:** a required first question *Are you currently working?* (`work.workNow`), cross-checked with the jobs' own "Currently working here?" answers. The CV pre-fill sets it from the jobs it finds.
 - **Google Sheet (`SHEETS_SETUP.md`):** one row per candidate — Name, Age, Degree, Total Exp, Department, Currently Working?, B1/B2 Certificate, Timeline Gaps, CV link.
+
+
+## Reference order adopted (2026-10-30, from screenshots)
+
+Pages: 1 General Information → 2 Personal Data → 3 Education (degree/training) → 4 Schooling (Class 12 / +2) → 5 Work Experience (+ career breaks) → 6 Additional Knowledge and Skills (+ German certificate) → 7 Spoken Languages → 8 Job Preferences → 9 Documents.
+Field order inside each page follows the reference modal. Added vs. reference: First/Last name, planned first B2 attempt, "Are you currently working?", Email (reference has it on Personal Data too), German-certificate details, Notes.
+**German institution names** (`college.institution`, `schooling.institutionGerman`, `employment.employerGerman`) are `auto` fields: never shown to the candidate; filled from the CV where possible and otherwise generated at submit (`api/_translate.js`). Shown in review/admin and the candidate file.
+**Compulsory:** Diploma Date on both Education and Schooling; End date on Education and Schooling.

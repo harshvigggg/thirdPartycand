@@ -127,7 +127,7 @@ function paintGaps() {
     if (small) small.textContent = span; else if (span) en.querySelector('.entry-h b').insertAdjacentHTML('beforeend', `<small>${esc(span)}</small>`);
   });
 }
-const grid = (g, s, base) => `<div class="grid">${g.fields.filter(f => !f.intro).map(f => field(f, s, base)).join('')}</div>`;
+const grid = (g, s, base) => `<div class="grid">${g.fields.filter(f => !f.intro && !f.auto).map(f => field(f, s, base)).join('')}</div>`;
 
 function field(f, s, base) {
   if (!visible(f, s, D)) return '';
@@ -312,7 +312,7 @@ function applyResume(x) {
     if (!D[g.key].length && g.repeat.min) D[g.key] = [{}];
   }
   // A CV that lists jobs also answers "Are you currently working?".
-  if (!filled(D.work.workNow) && D.employment.some(e => filled(e.employer) || filled(e.jobTitle))) {
+  if (!filled(D.work.workNow) && D.employment.some(e => filled(e.employer) || filled(e.position) || filled(e.jobTitle))) {
     D.work.workNow = D.employment.some(e => e.current === 'Yes') ? 'Yes' : 'No'; auto['work.workNow'] = JSON.stringify(D.work.workNow); n++;
   }
   return n;

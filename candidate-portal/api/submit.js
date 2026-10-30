@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { db, guard, UUID } from './_lib.js';
 import { pushToSheet } from './_sheets.js';
+import { fillGermanNames } from './_translate.js';
 import { normalize, validate, filePaths } from '../public/schema.js';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -15,6 +16,7 @@ export default async function handler(req, res) {
   if (Object.keys(fields).length) return res.status(400).json({ error: 'Some answers are missing or invalid. Please review the form.', fields });
   if (filePaths(clean).some(p => !p.startsWith(session.toLowerCase() + '/'))) return res.status(400).json({ error: 'Please upload your documents again.' });
 
+  try { await fillGermanNames(clean); } catch (e) { console.error('german names', e.message); } // staff can add any that are missing
   const p = clean.basic, sb = db();
   for (let i = 0; i < 3; i++) {
     const ref = refId();

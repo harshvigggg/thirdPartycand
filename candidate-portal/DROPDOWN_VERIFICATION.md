@@ -56,3 +56,24 @@ Legend: ✅ verified · 🟡 partially verified · ❌ missing / needs screensho
 | States / Region / Adjustment measure / Family reunification | 17 / 3 / 3 / 13 | `praferiertes_bundesland`, `praferierte_region`, `praferierte_anpassungsma_nahme`, `familiennachzug` | 🟡 |
 | Driver's license / IT skills | 3 / 8 | `fuhrerschein`, `it_kenntnisse` | 🟡 |
 | Vaccinations | 16 | `impfung` | 🟡 |
+
+
+## Verified from reference screenshots (2026-10-30)
+
+| Dropdown | Options now used | Status |
+|---|---|---|
+| Nationality / Current location / Country of birth / Country | reference `land` list (196) | ✅ |
+| Profession | `nurse_type` (17; "nicht benutzen – MTRA" dropped) | ✅ |
+| Current German level / Proficiency Level | `kenntnisstand` (A1 – Basics … C2 – Native speaker) + "No German yet" (ours) | ✅ |
+| Marital status | `marital_status_new` (7) | ✅ |
+| Children | `children` (6) | ✅ |
+| Position title/job title | `bezeichnung_der_position_jobtitel` (27, incl. "Other position" → free text) | ✅ |
+| Facility type (work) | `einrichtungstyp` (+ Other) | 🟡 screenshot shows German label "Krankenhaus"; list itself unverified |
+| Number of beds | free text (number) | ❌ reference is a dropdown; only "Weniger als 150" seen |
+| Department (work) | `abteilung` (92) | ✅ |
+| Employment relationship | `beschaftigungsverhaltnis` (8) | ✅ |
+| Tasks | free text | ❌ reference is a 947-item multi-select; cannot be verified by screenshot |
+| Driver's license | `fuhrerschein` (3) | ✅ |
+| IT skills | `it_kenntnisse` (8) | ✅ |
+| Language | `sprache` (96) | ✅ |
+| Preferences: Facility type / Departments / States / Region / Adjustment measure / Family reunification | `einrichtungs_typ` (6) / `abteilung_en` (77) / `praferiertes_bundesland` (17) / `praferierte_region` (3) / `praferierte_anpassungsma_nahme` (3) / `familiennachzug` (13) | ✅ |
