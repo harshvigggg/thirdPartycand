@@ -52,7 +52,7 @@ test('conditionals: other degree, voluntary break, German CEFR', () => {
   assert.ok(errs('employment', { employment: [], breaks: [{ type: 'Voluntary work', startDate: '2020-01-01' }] })['breaks.0.purpose']);
   assert.equal(Object.keys(errs('language', { languages: [{ name: 'German' }] })).join(), 'languages.0.fluency');
 });
-test('job requires the sheet fields', () => {
+test('job requires the reference fields', () => {
   const e = errs('employment', { employment: [{}], breaks: [] });
   for (const k of ['position', 'employer', 'facilityType', 'department', 'employmentType', 'country', 'city', 'responsibilities', 'startDate']) assert.ok(e[`employment.0.${k}`], k);
   assert.equal(e['employment.0.conditions'], undefined);
@@ -79,7 +79,7 @@ test('file names and admin sections', () => {
   assert.equal(Object.keys(DOC_KINDS).join(), 'cv,passport,nationalId,degree,transcript,germanCertificate,experienceLetters');
 });
 
-import { candidateSummary, months } from '../public/schema.js';
+import { months } from '../public/schema.js';
 test('"Are you currently working?" is required and cross-checked against the jobs', () => {
   const job = { current: 'Yes', startDate: '2021-03-01' };
   assert.ok(errs('employment', { work: {}, employment: [], breaks: [] })['work.workNow']);
@@ -89,25 +89,6 @@ test('"Are you currently working?" is required and cross-checked against the job
   assert.equal(errs('employment', { work: { workNow: 'No' }, employment: [], breaks: [] })['work.workNow'], undefined);
 });
 test('months() pluralises', () => assert.equal(months(13), '1 Year 1 Month'));
-test('sheet summary: one row with the requested fields', () => {
-  const sm = candidateSummary({
-    basic: { firstName: 'Priya', lastName: 'Sharma', dateOfBirth: '1995-03-14' },
-    college: [{ degree: DEGREES[0], startDate: '2013-06-01', endDate: '2017-05-01' }], schooling: [{ startDate: '2011-06-01', endDate: '2013-03-01' }],
-    employment: [{ department: 'ICU', startDate: '2017-08-01', endDate: '2020-12-01', current: 'No' }, { department: 'Emergency', startDate: '2021-03-01', current: 'Yes' }],
-    work: { workNow: 'Yes' }, german: { learning: 'Yes', examLevel: 'B1', examStatus: 'Fully Passed' }, breaks: [], languages: [],
-    documents: { cv: [{ path: 'a/b.pdf' }], passport: [{ path: 'a/p.pdf' }] },
-  });
-  assert.equal(sm.name, 'Priya Sharma');
-  assert.ok(sm.age >= 30);
-  assert.equal(sm.degree, DEGREES[0]);
-  assert.equal(sm.department, 'Emergency · ICU');            // current job first
-  assert.equal(sm.currentlyWorking, 'Yes');
-  assert.equal(sm.germanCert, 'B1 – Fully Passed');
-  assert.match(sm.gaps, /Apr 2013 – May 2013/);
-  assert.equal(sm.cvName, "Priya Sharma's CV.pdf");           // CV only, never the passport
-  assert.equal(candidateSummary({}).germanCert, 'No certificate');
-  assert.equal(candidateSummary({}).gaps, 'None');
-});
 test('planned first B2 attempt is asked on page 1 and required unless B2+ already held', () => {
   const f = fields('basic').find(x => x.k === 'plannedB2');
   assert.ok(f && f.t === 'date');
@@ -136,4 +117,21 @@ test('German names are generated server-side: only missing ones are requested', 
   assert.deepEqual(pendingTranslations(d).map(t => `${t.list}.${t.i}.${t.dst}=${t.name}`),
     ['college.0.institution=KLE Institute of Nursing Sciences', 'schooling.0.institutionGerman=Punjab School Education Board', 'employment.0.employerGerman=Apollo Hospital']);
   assert.equal(d.college[1].institution, 'X Hochschule', 'normalize keeps auto fields');
+});
+test('documents: every document compulsory as PDF, photo as image, CV may be Word', () => {
+  const docs = fields('documents'), req = (k, d = {}) => { const f = docs.find(x => x.k === k); return typeof f.r === 'function' ? f.r({}, d) : !!f.r; };
+  for (const k of ['cv', 'passport', 'nationalId', 'degree', 'transcript', 'marksheets', 'registration', 'photo']) assert.ok(req(k), k);
+  assert.equal(req('germanCertificate', { german: { learning: 'No' } }), false);
+  assert.equal(req('germanCertificate', { german: { learning: 'Yes' } }), true);
+  assert.equal(req('experienceLetters', { employment: [] }), false);
+  assert.equal(req('experienceLetters', { employment: [{}] }), true);
+  assert.equal(req('other'), false);
+  for (const f of docs) if (!['cv', 'photo'].includes(f.k)) assert.equal(f.pdf, 1, f.k + ' must be PDF');
+  assert.equal(docs.find(f => f.k === 'photo').img, 1);
+  const P = '00000000-0000-4000-8000-000000000000/11111111-1111-4111-8111-111111111111';
+  const e = validate({ documents: { passport: [{ name: 'p.jpg', path: `${P}.jpg` }], photo: [{ name: 'me.pdf', path: `${P}.pdf` }], degree: [{ name: 'd.pdf', path: `${P}.pdf` }] } }, { step: step('documents'), client: 1 });
+  assert.match(e['documents.passport'], /must be a PDF/);
+  assert.match(e['documents.photo'], /JPG or PNG/);
+  assert.equal(e['documents.degree'], undefined);
+  assert.ok(e['documents.nationalId']);
 });

@@ -131,7 +131,6 @@ Pages now follow the sheet, in this order, with fields in the sheet's order; eve
 Catalogs: Type of Facility = reference `einrichtungstyp` (+ Other), Department = reference `abteilung` (92), Employment Type = `beschaftigungsverhaltnis` (8), Children = `children` (6).
 Document reading: `api/parse-docs.js` can read several documents in one request, but the form currently sends only the CV (uploaded on the intro); the other documents are collected on the last page and stored. Catalog choices free-text choices (department, home qualification) are matched onto the form's option lists in the browser.
 - **Work page:** a required first question *Are you currently working?* (`work.workNow`), cross-checked with the jobs' own "Currently working here?" answers. The CV pre-fill sets it from the jobs it finds.
-- **Google Sheet (`SHEETS_SETUP.md`):** one row per candidate — Name, Age, Degree, Total Exp, Department, Currently Working?, B1/B2 Certificate, Timeline Gaps, CV link.
 
 
 ## Reference order adopted (2026-10-30, from screenshots)

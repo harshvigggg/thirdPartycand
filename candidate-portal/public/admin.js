@@ -25,7 +25,7 @@ function login(msg = '') {
 
 async function list() {
   const j = await api(); if (!j) return;
-  app.innerHTML = `<section class="card"><div class="rv-h"><h2>Submissions (${j.items.length})</h2><button type="button" class="btn" data-syncall="${j.items.map(x => esc(x.ref)).join(',')}">Send all to Google Sheet</button></div><p class="note" id="sync-msg"></p><input id="q" type="search" placeholder="Search name, email, phone or reference" aria-label="Search">
+  app.innerHTML = `<section class="card"><h2>Submissions (${j.items.length})</h2><input id="q" type="search" placeholder="Search name, email, phone or reference" aria-label="Search">
 <div class="tbl"><table><thead><tr><th>Reference</th><th>Name</th><th>Email</th><th>Phone</th><th>Submitted</th></tr></thead><tbody>
 ${j.items.map(x => `<tr tabindex="0" data-ref="${esc(x.ref)}"><td>${esc(x.ref)}</td><td>${esc(x.full_name)}</td><td>${esc(x.email)}</td><td>${esc(x.phone)}</td><td>${when(x.created_at)}</td></tr>`).join('')}
 </tbody></table></div></section>`;
@@ -46,28 +46,13 @@ async function detail(ref) {
     `\nTIMELINE GAPS (auto-detected, any full month without an entry)\n` + gapLines.join('\n'),
     ...secs.map(s => `\n${s.title.toUpperCase()}\n` + s.items.map(it => it.h ? `-- ${it.h}` : `${it.l}: ${it.files ? it.files.map(fname).join(', ') : it.v}`).join('\n'))].join('\n');
   const link = f => files[f.path] ? `<a href="${esc(files[f.path])}" target="_blank" rel="noopener">${esc(fname(f))}</a> <small class="note">(${esc(f.name)})</small>` : esc(fname(f));
-  app.innerHTML = `<p><a href="#">← All submissions</a></p><section class="card"><div class="rv-h"><div><h2 style="margin:0">${esc(item.full_name)}</h2><p class="note" style="margin:4px 0 0">${esc(item.ref)} · ${when(item.created_at)}</p></div><div class="nav" style="margin:0"><button type="button" class="btn" data-c="${vals.push(full) - 1}">Copy Full Candidate Data</button><button type="button" class="btn" data-sync="${esc(item.ref)}">Send to Google Sheet</button><button type="button" class="btn primary" data-dl="${vals.length - 1}" data-name="${esc(item.ref)}">Download Candidate File</button></div></div><p class="note" id="sync-msg" style="margin:10px 0 0"></p></section>`
+  app.innerHTML = `<p><a href="#">← All submissions</a></p><section class="card"><div class="rv-h"><div><h2 style="margin:0">${esc(item.full_name)}</h2><p class="note" style="margin:4px 0 0">${esc(item.ref)} · ${when(item.created_at)}</p></div><div class="nav" style="margin:0"><button type="button" class="btn" data-c="${vals.push(full) - 1}">Copy Full Candidate Data</button><button type="button" class="btn primary" data-dl="${vals.length - 1}" data-name="${esc(item.ref)}">Download Candidate File</button></div></div></section>`
     + `<section class="card ${anyGap ? 'warn' : ''}"><h3 style="margin-top:0">Timeline gaps${anyGap ? ' ⚠' : ''}</h3><p class="note">Auto-detected: any full month with no schooling, college, job or career break entry.</p>${tg.map(t => `<div class="row"><span class="k">${esc(t.title)}</span><span class="v${t.gaps.length ? ' gap-v' : ''}">${t.gaps.length ? t.gaps.map(esc).join('<br>') : 'No gaps'}</span></div>`).join('')}</section>`
     + secs.map(s => `<section class="card"><h3 style="margin-top:0">${s.title}</h3>${s.items.map(it => it.h ? `<h4>${esc(it.h)}</h4>`
       : `<div class="row"><span class="k">${esc(it.l)}</span><span class="v">${it.files ? it.files.map(link).join('<br>') : esc(it.v)}</span>${it.files ? '' : copy(it.v)}</div>`).join('')}</section>`).join('');
 }
 
-async function sync(ref) {
-  const r = await fetch('/api/sheets-sync', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': key }, body: JSON.stringify({ ref }) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Could not reach the sheet.');
-}
 app.addEventListener('click', async e => {
-  const one = e.target.closest('[data-sync]'), all = e.target.closest('[data-syncall]'), msg = document.getElementById('sync-msg');
-  if (one || all) {
-    const btn = one || all, refs = one ? [one.dataset.sync] : all.dataset.syncall.split(',').filter(Boolean), t = btn.textContent;
-    btn.disabled = true; let done = 0;
-    try {
-      for (const ref of refs) { msg.textContent = `Sending ${done + 1} of ${refs.length}…`; await sync(ref); done++; }
-      msg.textContent = `✓ ${done} candidate${done === 1 ? '' : 's'} sent to the Google Sheet.`;
-    } catch (err) { msg.textContent = `✗ ${err.message}${done ? ` (${done} sent before the error)` : ''}`; }
-    btn.disabled = false; btn.textContent = t; return;
-  }
   const dl = e.target.closest('[data-dl]');
   if (dl) {
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([vals[dl.dataset.dl]], { type: 'text/plain' })), download: `${dl.dataset.name}.txt` });

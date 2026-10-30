@@ -37,9 +37,6 @@
     },
     "api/submit.js": {
       "maxDuration": 30
-    },
-    "api/sheets-sync.js": {
-      "maxDuration": 30
     }
   },
   "redirects": [

@@ -20,7 +20,6 @@ A mobile-first, multi-step candidate form with document uploads, a review screen
    | `SUPABASE_SERVICE_ROLE_KEY` | secret key from step 2 |
    | `ADMIN_KEY` | any long random password (12+ characters) for the internal view |
    | `ANTHROPIC_API_KEY` | Claude API key — used only to read the uploaded CV and pre-fill the form (optional; without it the form still works, the CV is just not read) |
-   | `GOOGLE_SERVICE_ACCOUNT_JSON`, `SHEET_ID` | Optional: send each submission to a Google Sheet through a service account — see `SHEETS_SETUP.md` |
 
 4. Deploy. Share `/candidate-form` with candidates.
 

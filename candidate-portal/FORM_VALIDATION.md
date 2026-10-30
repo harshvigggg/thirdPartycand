@@ -64,3 +64,7 @@ Values from the CV are written only into empty fields and then validated exactly
 
 ## Employment / Personal reference dropdowns — pending screenshots.
 Reference conditional hints already known: "Conditions treated" and "Equipment used" are *required for intensive care, N-ICU, K-ICU, operating theatre*; "Number of beds" is *required for facility types with inpatient care*; blank end date = ongoing.
+
+## Documents (2026-10-30)
+Every document is compulsory and must be a **PDF** (checked in the browser and again on the server): Passport, National ID, Degree certificate, College transcript(s), Class 12 marksheet(s), Nursing registration, and the CV (PDF or Word). German certificate is required when the candidate has taken a German exam; experience letters are required when at least one job is listed. The passport-size **photo** is required and must be a JPG/PNG. "Other supporting documents" stays optional (PDF).
+Google Sheets export was removed on request; the admin page and the downloadable candidate file remain the only outputs.

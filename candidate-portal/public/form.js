@@ -4,7 +4,9 @@ const KEY = 'candidate-form-draft', MAX = 10 * 1024 * 1024;
 const TYPES = ['application/pdf', 'image/jpeg', 'image/png'], ACCEPT = '.pdf,.jpg,.jpeg,.png';
 // The CV may also be a Word file; it is converted to text on the server before it is read.
 const WORD = { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/msword': 'doc' };
-const docTypes = f => f.word ? [...TYPES, ...Object.keys(WORD)] : TYPES, docAccept = f => f.word ? ACCEPT + ',.doc,.docx' : ACCEPT;
+const docTypes = f => f.word ? [...TYPES, ...Object.keys(WORD)] : f.pdf ? ['application/pdf'] : f.img ? ['image/jpeg', 'image/png'] : TYPES;
+const docAccept = f => f.word ? ACCEPT + ',.doc,.docx' : f.pdf ? '.pdf' : f.img ? '.jpg,.jpeg,.png' : ACCEPT;
+const docLabel = f => f.word ? 'PDF / Word (.docx, .doc) / JPG / PNG' : f.pdf ? 'PDF only' : f.img ? 'JPG / PNG' : 'PDF / JPG / PNG';
 const fileType = file => file.type || ({ pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', docx: Object.keys(WORD)[0], doc: Object.keys(WORD)[1] })[file.name.split('.').pop().toLowerCase()] || '';
 const AC = { firstName: 'given-name', middleName: 'additional-name', lastName: 'family-name', dateOfBirth: 'bday', email: 'email', address: 'street-address', currentCity: 'address-level2' };
 const N = FORM_STEPS.length, app = document.getElementById('app');
@@ -170,7 +172,7 @@ function slot(p) {
   }).join('')
     + up.map(u => `<div class="file"><span class="th">…</span><span class="fn">${esc(u.name)}<span class="bar"><i style="width:${u.pct}%"></i></span></span></div>`).join('')
     + (f.multi || !files.length
-      ? `<label class="drop"><input class="vh" type="file" data-up="${p}" accept="${docAccept(f)}"${f.multi ? ' multiple' : ''}><b>${files.length ? 'Add another file' : 'Click to upload'}</b> or drag a file here<small>${f.word ? 'PDF / Word (.docx, .doc) / JPG / PNG' : 'PDF / JPG / PNG'} · up to 10 MB</small></label>`
+      ? `<label class="drop"><input class="vh" type="file" data-up="${p}" accept="${docAccept(f)}"${f.multi ? ' multiple' : ''}><b>${files.length ? 'Add another file' : 'Click to upload'}</b> or drag a file here<small>${docLabel(f)} · up to 10 MB</small></label>`
       : `<label class="replace"><input class="vh" type="file" data-up="${p}" accept="${docAccept(f)}">Replace file</label>`);
 }
 function paintSlot(p) { const el = app.querySelector(`[data-slot="${p}"]`); if (el) el.innerHTML = slot(p); }
@@ -244,7 +246,7 @@ async function upload(p, list) {
   const f = slotField[p];
   for (const file of list.slice(0, f.multi ? 10 : 1)) {
     const type = fileType(file);
-    if (!docTypes(f).includes(type)) { fileErr(p, f.word ? 'Only PDF, Word (.docx / .doc), JPG or PNG files are allowed.' : 'Only PDF, JPG or PNG files are allowed.'); continue; }
+    if (!docTypes(f).includes(type)) { fileErr(p, f.word ? 'Only PDF, Word (.docx / .doc), JPG or PNG files are allowed.' : f.pdf ? 'This document must be a PDF file. Please scan it as a PDF.' : f.img ? 'The photo must be a JPG or PNG image.' : 'Only PDF, JPG or PNG files are allowed.'); continue; }
     if (file.size > MAX) { fileErr(p, 'This file is larger than 10 MB.'); continue; }
     fileErr(p, '');
     const u = { name: file.name, pct: 0 };

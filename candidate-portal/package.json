@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file=.env dev.mjs",
-    "test": "node --test test/form.test.mjs test/sheets.test.mjs"
+    "test": "node --test test/form.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",

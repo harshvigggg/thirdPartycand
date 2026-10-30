@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { db, guard, UUID } from './_lib.js';
-import { pushToSheet } from './_sheets.js';
 import { fillGermanNames } from './_translate.js';
 import { normalize, validate, filePaths } from '../public/schema.js';
 
@@ -24,11 +23,7 @@ export default async function handler(req, res) {
       ref, data: clean, email: clean.personal.email, phone: clean.personal.phone,
       full_name: [p.firstName, p.lastName].filter(Boolean).join(' '),
     });
-    if (!error) {
-      try { await pushToSheet({ ref, data: clean, created_at: new Date().toISOString() }, req); }
-      catch (e) { console.error('sheet sync failed for', ref, e.message); } // the admin page can re-send it
-      return res.json({ ref });
-    }
+    if (!error) return res.json({ ref });
     if (error.code !== '23505') break; // retry only on duplicate reference
   }
   res.status(500).json({ error: 'We could not save your submission. Please try again.' });

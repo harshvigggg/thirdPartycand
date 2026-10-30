@@ -22,7 +22,7 @@ const GERMAN_LEVELS = ['No German yet', ...LEVELS];
 
 // Field keys: k key, l label, t type, r required (bool or fn), if visibility fn, o options, ph placeholder, hint helper text.
 // Groups with `timeline: 1` render as a dated timeline. The step flagged `pre: 1` (documents) is collected on the intro page, before step 1.
-// Section order and field order follow the "Candidate Profile — 8 sections" sheet.
+// Section order and field order follow the reference form.
 export const STEPS = [
   // 1. General Information (reference modal "General Information")
   { key: 'basic', title: 'General Information', short: 'General', groups: [{ key: 'basic', fields: [
@@ -157,18 +157,19 @@ export const STEPS = [
     { k: 'extraPreferences', l: 'Additional preferences', t: 'textarea' },
   ] }] },
   // 9. Documents — the CV is collected on the intro page (`intro: 1`); the rest are the last step.
-  { key: 'documents', title: 'Documents', short: 'Documents', note: 'Upload clear scans or photos. PDF, JPG or PNG, up to 10 MB per file.', groups: [{ key: 'documents', fields: [
+  // Every document is compulsory and must be a PDF; the photo is a JPG/PNG. `pdf`/`img` restrict the accepted file types.
+  { key: 'documents', title: 'Documents', short: 'Documents', note: 'All documents are required and must be PDF files (up to 10 MB each). Scan each document into one PDF; only the photo is a JPG or PNG.', groups: [{ key: 'documents', fields: [
     { k: 'cv', l: 'CV / Resume', t: 'file', r: 1, intro: 1, word: 1, hint: 'PDF or Word file. We read your CV to fill in the form for you.' },
-    { k: 'passport', l: 'Passport', t: 'file', r: (s, d) => !!d.personal?.passportNumber },
-    { k: 'nationalId', l: 'National ID', t: 'file' },
-    { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file' },
-    { k: 'transcript', l: 'College Transcript', t: 'file', multi: 1 },
-    { k: 'germanCertificate', l: 'German Language Certificate', t: 'file' },
-    { k: 'experienceLetters', l: 'Internship / Job Experience Letters', fn: 'Experience Letter', t: 'file', multi: 1 },
-    { k: 'photo', l: 'Profile Photo', t: 'file' },
-    { k: 'marksheets', l: 'Academic Marksheets', t: 'file', multi: 1 },
-    { k: 'registration', l: 'Professional Registration', t: 'file' },
-    { k: 'other', l: 'Other Supporting Documents', t: 'file', multi: 1 },
+    { k: 'passport', l: 'Passport (colour copy)', fn: 'Passport', t: 'file', r: 1, pdf: 1 },
+    { k: 'nationalId', l: 'National ID (colour copy)', fn: 'National ID', t: 'file', r: 1, pdf: 1 },
+    { k: 'degree', l: "Bachelor's / Nursing Degree Certificate", fn: 'Degree Certificate', t: 'file', r: 1, pdf: 1 },
+    { k: 'transcript', l: 'College Transcript (subject and grade transcript)', fn: 'Transcript', t: 'file', r: 1, pdf: 1, multi: 1 },
+    { k: 'marksheets', l: 'Class 12 / +2 Marksheet', fn: 'Class 12 Marksheet', t: 'file', r: 1, pdf: 1, multi: 1 },
+    { k: 'registration', l: 'Nursing Registration / Licence', fn: 'Nursing Registration', t: 'file', r: 1, pdf: 1 },
+    { k: 'germanCertificate', l: 'German Language Certificate', t: 'file', r: (s, d) => d.german?.learning === 'Yes', pdf: 1, hint: 'Required if you have taken a German exam.' },
+    { k: 'experienceLetters', l: 'Internship / Job Experience Letters', fn: 'Experience Letter', t: 'file', r: (s, d) => (d.employment || []).length > 0, pdf: 1, multi: 1, hint: 'One letter for each job you listed.' },
+    { k: 'photo', l: 'Passport-size Photo', fn: 'Photo', t: 'file', r: 1, img: 1, hint: 'JPG or PNG, plain background.' },
+    { k: 'other', l: 'Other Supporting Documents', t: 'file', pdf: 1, multi: 1, hint: 'Optional.' },
   ] }] },
 ];
 // Document fields that are read to pre-fill the form, in priority order, with the label the reader sees.
@@ -193,7 +194,12 @@ function check(f, v, s, g, d, o) {
     if (!Array.isArray(v) || new Set(v).size !== v.length || !v.every(x => f.o.includes(x))) return 'Please choose from the list.';
     return f.none && v.includes(f.none) && v.length > 1 ? `"${f.none}" can't be combined with other choices.` : '';
   }
-  if (f.t === 'file') return Array.isArray(v) && v.length <= 10 && v.every(x => typeof x?.name === 'string' && FILE.test(x.path)) ? '' : 'Please upload this file again.';
+  if (f.t === 'file') {
+    if (!(Array.isArray(v) && v.length <= 10 && v.every(x => typeof x?.name === 'string' && FILE.test(x.path)))) return 'Please upload this file again.';
+    if (f.pdf && !v.every(x => x.path.endsWith('.pdf'))) return 'This document must be a PDF file.';
+    if (f.img && !v.every(x => /\.(jpg|png)$/.test(x.path))) return 'The photo must be a JPG or PNG image.';
+    return '';
+  }
   if (typeof v !== 'string') return 'Please check this answer.';
   if (v.length > (f.t === 'textarea' ? 2000 : 200)) return 'This answer is too long.';
   if (f.o && !f.o.includes(v)) return 'Please choose an option.';
@@ -337,35 +343,4 @@ export function timelineGaps(raw) {
     { title: 'Work timeline (jobs → career breaks)', gaps: gaps(work) },
     { title: 'Overall timeline (education + work + breaks, up to today)', gaps: gaps([...edu, ...work]) },
   ];
-}
-
-// ---------- Google Sheet summary: one row per candidate ----------
-const ageOf = dob => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob || '')) return '';
-  const t = today(), a = +t.slice(0, 4) - +dob.slice(0, 4);
-  return a - (t.slice(5) < dob.slice(5) ? 1 : 0);
-};
-const lastDate = e => e.current === 'Yes' ? '9999-12' : (e.endDate || e.startDate || '');
-export function candidateSummary(raw) {
-  const d = normalize(raw), jobs = [...d.employment].sort((a, b) => lastDate(b).localeCompare(lastDate(a)));
-  const m = experience(d.employment), g = d.german, lvl = d.skills.germanLevel || d.basic.germanLevel;
-  const degs = [...d.college].sort((a, b) => (a.endDate || a.startDate || '').localeCompare(b.endDate || b.startDate || ''))
-    .map(c => c.degree === OTHER_DEGREE ? c.degreeOther || c.degree : c.degree).filter(Boolean);
-  const gapList = timelineGaps(raw)[2].gaps;
-  const cvFile = (d.documents.cv || [])[0];
-  let cert = 'No certificate';
-  if (g.learning === 'Yes' && g.examLevel) cert = `${g.examLevel} – ${g.examStatus || 'Status not given'}${g.nextBooked === 'Yes' && g.nextLevel ? ` · next: ${g.nextLevel} on ${fmtDate(g.nextDate)}` : ''}`;
-  else if (lvl && lvl !== 'None') cert = `${lvl} (no certificate yet)`;
-  return {
-    name: [d.basic.firstName, d.basic.lastName].filter(Boolean).join(' '),
-    age: ageOf(d.basic.dateOfBirth),
-    degree: [...new Set(degs)].join('\n'),
-    totalExp: m ? months(m) : 'No experience',
-    department: [...new Set(jobs.map(j => j.department).filter(Boolean))].join(' · '),
-    currentlyWorking: d.work?.workNow || (d.employment.some(e => e.current === 'Yes') ? 'Yes' : 'No'),
-    germanCert: cert,
-    gaps: gapList.length ? gapList.join('\n') : 'None',
-    cvName: cvFile ? fileNames(d)[cvFile.path] : '',
-    cvPath: cvFile?.path || '',
-  };
 }
